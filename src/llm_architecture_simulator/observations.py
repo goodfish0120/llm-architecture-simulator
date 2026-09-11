@@ -6,30 +6,35 @@ from statistics import mean
 class SimulationObserver:
     def __init__(self) -> None:
         self.completed_token_times_ns: list[float] = []
-        self.executed_expert_batch_sizes: list[int] = []
-        self.remote_expert_branch_count = 0
-        self.local_expert_branch_count = 0
-        self.maximum_expert_queue_depth_in_logical_units = 0
+        self.expert_batch_records: list[tuple[float, int, int]] = []
+        self.expert_route_records: list[tuple[float, bool, int]] = []
+
+    @property
+    def executed_expert_batch_sizes(self) -> list[int]:
+        return [batch_size for _, batch_size, _ in self.expert_batch_records]
 
     def record_completed_token(self, completion_time_ns: float) -> None:
         self.completed_token_times_ns.append(completion_time_ns)
 
     def record_expert_batch_execution(
         self,
+        execution_time_ns: float,
         executed_batch_size: int,
         queue_depth_before_execution: int,
     ) -> None:
-        self.executed_expert_batch_sizes.append(executed_batch_size)
-        self.maximum_expert_queue_depth_in_logical_units = max(
-            self.maximum_expert_queue_depth_in_logical_units,
-            queue_depth_before_execution,
+        self.expert_batch_records.append(
+            (execution_time_ns, executed_batch_size, queue_depth_before_execution)
         )
 
-    def record_expert_route(self, is_remote_route: bool, branch_count: int) -> None:
-        if is_remote_route:
-            self.remote_expert_branch_count += branch_count
-        else:
-            self.local_expert_branch_count += branch_count
+    def record_expert_route(
+        self,
+        routing_time_ns: float,
+        is_remote_route: bool,
+        branch_count: int,
+    ) -> None:
+        self.expert_route_records.append(
+            (routing_time_ns, is_remote_route, branch_count)
+        )
 
     def calculate_tokens_per_second_for_fixed_time_windows(
         self,
@@ -85,8 +90,25 @@ class SimulationObserver:
             )
             return tokens_per_second[index]
 
-        total_expert_branch_count = (
-            self.remote_expert_branch_count + self.local_expert_branch_count
+        expert_batch_records = [
+            record
+            for record in self.expert_batch_records
+            if warmup_time_ns <= record[0] < simulation_end_time_ns
+        ]
+        expert_route_records = [
+            record
+            for record in self.expert_route_records
+            if warmup_time_ns <= record[0] < simulation_end_time_ns
+        ]
+
+        remote_branch_count = sum(
+            branch_count
+            for _, is_remote, branch_count in expert_route_records
+            if is_remote
+        )
+        total_branch_count = sum(
+            branch_count
+            for _, _, branch_count in expert_route_records
         )
 
         return {
@@ -96,16 +118,19 @@ class SimulationObserver:
             "p50_tokens_per_second": percentile(0.50),
             "p90_tokens_per_second": percentile(0.90),
             "mean_expert_batch_size": (
-                mean(self.executed_expert_batch_sizes)
-                if self.executed_expert_batch_sizes
+                mean(batch_size for _, batch_size, _ in expert_batch_records)
+                if expert_batch_records
                 else 0.0
             ),
             "remote_expert_route_fraction": (
-                self.remote_expert_branch_count / total_expert_branch_count
-                if total_expert_branch_count
+                remote_branch_count / total_branch_count
+                if total_branch_count
                 else 0.0
             ),
             "maximum_expert_queue_depth_in_logical_units": float(
-                self.maximum_expert_queue_depth_in_logical_units
+                max(
+                    (queue_depth for _, _, queue_depth in expert_batch_records),
+                    default=0,
+                )
             ),
         }
