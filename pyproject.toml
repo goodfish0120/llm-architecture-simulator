@@ -1,0 +1,18 @@
+[project]
+name = "llm-architecture-simulator"
+version = "0.1.0"
+description = "Stochastic architecture sandbox for LLM and Mixture-of-Experts systems"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "goodfish0120" }]
+dependencies = []
+
+[project.scripts]
+llm-architecture-simulator = "llm_architecture_simulator.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
