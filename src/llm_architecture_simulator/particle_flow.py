@@ -13,6 +13,7 @@ class ParticleBatchingRule(str, Enum):
 @dataclass(frozen=True)
 class LogicalWorkUnit:
     globally_unique_token_id: int
+    workload_agent_id: int
     dependency_join_id: str | None = None
     branch_index_inside_dependency_join: int | None = None
     node_that_owns_sequence_state: int | None = None
@@ -138,6 +139,7 @@ class DependencyJoinTracker:
                 released_units_by_owner.setdefault(unit.node_that_owns_sequence_state, []).append(
                     LogicalWorkUnit(
                         globally_unique_token_id=unit.globally_unique_token_id,
+                        workload_agent_id=unit.workload_agent_id,
                         node_that_owns_sequence_state=unit.node_that_owns_sequence_state,
                     )
                 )
