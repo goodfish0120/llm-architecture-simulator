@@ -15,6 +15,12 @@ def choose_rendezvous_node_for_selected_expert_nodes(
     sequence_owner_node_id: int,
     rendezvous_policy: str,
 ) -> int:
+    """Choose where already-routed expert branches reunite before the token continues.
+
+    Expert routing has already selected the branches and revealed which nodes will
+    execute them. This runtime policy uses that known placement to choose the join
+    location without changing the model's routing decision.
+    """
     if not selected_expert_node_ids:
         raise ValueError("selected_expert_node_ids cannot be empty")
 
