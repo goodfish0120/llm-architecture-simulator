@@ -62,6 +62,13 @@ def calculate_compute_and_memory_idle_reason_fractions_between_times(
     measurement_start_time_ns: float,
     measurement_end_time_ns: float,
 ) -> dict[str, float]:
+    """Refine node occupancy into reasons that explain where useful work disappeared.
+
+    The simulation has already recorded how long kernels reserved compute and memory.
+    This reporting step adds the missing context: whether each side was productive,
+    waiting for the other side to finish, or completely unreserved. That distinction
+    is what later optimization can use to find genuinely fillable idle gaps.
+    """
     measurement_duration_ns = measurement_end_time_ns - measurement_start_time_ns
     if measurement_duration_ns <= 0:
         return {
