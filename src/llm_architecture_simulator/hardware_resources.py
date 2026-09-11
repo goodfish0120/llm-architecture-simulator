@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass
@@ -9,8 +9,8 @@ class SerializedThroughputResource:
     work_units_per_ns: float
     startup_latency_ns: float = 0.0
     next_free_time_ns: float = 0.0
-    accumulated_busy_time_ns: float = 0.0
     accumulated_queue_wait_time_ns: float = 0.0
+    reserved_busy_intervals_ns: list[tuple[float, float]] = field(default_factory=list)
 
     def reserve_resource_until_work_finishes(
         self,
@@ -29,9 +29,43 @@ class SerializedThroughputResource:
         service_end_time_ns = service_start_time_ns + service_duration_ns
 
         self.accumulated_queue_wait_time_ns += service_start_time_ns - ready_time_ns
-        self.accumulated_busy_time_ns += service_duration_ns
+        self.reserved_busy_intervals_ns.append(
+            (service_start_time_ns, service_end_time_ns)
+        )
         self.next_free_time_ns = service_end_time_ns
         return service_start_time_ns, service_end_time_ns
+
+    def reserve_exact_interval(
+        self,
+        ready_time_ns: float,
+        service_start_time_ns: float,
+        service_end_time_ns: float,
+    ) -> None:
+        if service_start_time_ns < ready_time_ns or service_end_time_ns < service_start_time_ns:
+            raise ValueError("invalid service interval")
+        self.accumulated_queue_wait_time_ns += service_start_time_ns - ready_time_ns
+        self.reserved_busy_intervals_ns.append(
+            (service_start_time_ns, service_end_time_ns)
+        )
+        self.next_free_time_ns = max(self.next_free_time_ns, service_end_time_ns)
+
+    def calculate_busy_fraction_between_times(
+        self,
+        measurement_start_time_ns: float,
+        measurement_end_time_ns: float,
+    ) -> float:
+        measurement_duration_ns = measurement_end_time_ns - measurement_start_time_ns
+        if measurement_duration_ns <= 0:
+            return 0.0
+
+        busy_time_ns = 0.0
+        for service_start_time_ns, service_end_time_ns in self.reserved_busy_intervals_ns:
+            overlap_start_time_ns = max(measurement_start_time_ns, service_start_time_ns)
+            overlap_end_time_ns = min(measurement_end_time_ns, service_end_time_ns)
+            if overlap_end_time_ns > overlap_start_time_ns:
+                busy_time_ns += overlap_end_time_ns - overlap_start_time_ns
+
+        return min(1.0, busy_time_ns / measurement_duration_ns)
 
 
 @dataclass
@@ -66,90 +100,15 @@ class ComputeAndMemoryNode:
         service_duration_ns = max(compute_duration_ns, memory_duration_ns)
         service_end_time_ns = service_start_time_ns + service_duration_ns
 
-        for resource in (self.compute_resource, self.memory_resource):
-            resource.accumulated_queue_wait_time_ns += service_start_time_ns - ready_time_ns
-            resource.accumulated_busy_time_ns += service_duration_ns
-            resource.next_free_time_ns = service_end_time_ns
+        self.compute_resource.reserve_exact_interval(
+            ready_time_ns,
+            service_start_time_ns,
+            service_end_time_ns,
+        )
+        self.memory_resource.reserve_exact_interval(
+            ready_time_ns,
+            service_start_time_ns,
+            service_end_time_ns,
+        )
 
         return service_start_time_ns, service_end_time_ns, service_duration_ns
-
-
-class SharedNetworkFabric:
-    def __init__(
-        self,
-        node_count: int,
-        endpoint_bytes_per_ns: float,
-        switch_bytes_per_ns: float,
-        fixed_network_latency_ns: float,
-    ) -> None:
-        self.fixed_network_latency_ns = fixed_network_latency_ns
-        self.transmit_resource_by_node = [
-            SerializedThroughputResource(f"nic_tx[{node_id}]", endpoint_bytes_per_ns)
-            for node_id in range(node_count)
-        ]
-        self.receive_resource_by_node = [
-            SerializedThroughputResource(f"nic_rx[{node_id}]", endpoint_bytes_per_ns)
-            for node_id in range(node_count)
-        ]
-        self.shared_switch_resource = SerializedThroughputResource(
-            "switch",
-            switch_bytes_per_ns,
-        )
-
-    def transfer_bytes_between_nodes(
-        self,
-        source_node_id: int,
-        destination_node_id: int,
-        ready_time_ns: float,
-        byte_count: float,
-    ) -> tuple[float, float]:
-        if source_node_id == destination_node_id:
-            return ready_time_ns, ready_time_ns
-
-        transmit_resource = self.transmit_resource_by_node[source_node_id]
-        receive_resource = self.receive_resource_by_node[destination_node_id]
-        switch_resource = self.shared_switch_resource
-
-        serialization_rate_bytes_per_ns = min(
-            transmit_resource.work_units_per_ns,
-            receive_resource.work_units_per_ns,
-            switch_resource.work_units_per_ns,
-        )
-        serialization_duration_ns = byte_count / serialization_rate_bytes_per_ns
-
-        serialization_start_time_ns = max(
-            ready_time_ns,
-            transmit_resource.next_free_time_ns,
-            switch_resource.next_free_time_ns,
-            receive_resource.next_free_time_ns - self.fixed_network_latency_ns,
-        )
-        receive_start_time_ns = serialization_start_time_ns + self.fixed_network_latency_ns
-        arrival_time_ns = receive_start_time_ns + serialization_duration_ns
-
-        transmit_resource.accumulated_queue_wait_time_ns += (
-            serialization_start_time_ns - ready_time_ns
-        )
-        switch_resource.accumulated_queue_wait_time_ns += (
-            serialization_start_time_ns - ready_time_ns
-        )
-        receive_resource.accumulated_queue_wait_time_ns += max(
-            0.0,
-            receive_start_time_ns - (ready_time_ns + self.fixed_network_latency_ns),
-        )
-
-        for resource in (
-            transmit_resource,
-            receive_resource,
-            switch_resource,
-        ):
-            resource.accumulated_busy_time_ns += serialization_duration_ns
-
-        transmit_resource.next_free_time_ns = (
-            serialization_start_time_ns + serialization_duration_ns
-        )
-        switch_resource.next_free_time_ns = (
-            serialization_start_time_ns + serialization_duration_ns
-        )
-        receive_resource.next_free_time_ns = arrival_time_ns
-
-        return serialization_start_time_ns, arrival_time_ns
