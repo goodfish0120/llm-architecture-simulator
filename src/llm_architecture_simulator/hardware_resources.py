@@ -40,7 +40,6 @@ class SerializedThroughputResource:
         )
         service_end_time_ns = service_start_time_ns + service_duration_ns
 
-        self.accumulated_queue_wait_time_ns += service_start_time_ns - ready_time_ns
         self.reserve_interval_and_record_productive_subinterval(
             ready_time_ns,
             service_start_time_ns,
