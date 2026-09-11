@@ -1,5 +1,13 @@
 from __future__ import annotations
 
+"""Build concrete runtime structures before the token event flow begins.
+
+The simulation configuration describes the system declaratively. The simulator's
+main event flow assumes compute resources, topology, routers, placements, and batch
+gates already exist, so this module resolves that setup boundary and keeps
+construction plumbing out of token-lifecycle code.
+"""
+
 from .discrete_event_engine import ParticleBatchingGate
 from .expert_routing import (
     WeightedTopKExpertRouter,
