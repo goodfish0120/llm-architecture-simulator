@@ -19,13 +19,14 @@ class BidirectionalNetworkLink:
             raise ValueError("bytes_per_ns_each_direction must be positive")
         if self.fixed_latency_ns < 0:
             raise ValueError("fixed_latency_ns must be non-negative")
+
         self.a_to_b = SerializedThroughputResource(
-            f"{self.link_name}:{self.endpoint_a}->{self.endpoint_b}",
-            self.bytes_per_ns_each_direction,
+            resource_name=f"{self.link_name}:{self.endpoint_a}->{self.endpoint_b}",
+            work_units_per_ns=self.bytes_per_ns_each_direction,
         )
         self.b_to_a = SerializedThroughputResource(
-            f"{self.link_name}:{self.endpoint_b}->{self.endpoint_a}",
-            self.bytes_per_ns_each_direction,
+            resource_name=f"{self.link_name}:{self.endpoint_b}->{self.endpoint_a}",
+            work_units_per_ns=self.bytes_per_ns_each_direction,
         )
 
     def other_endpoint(self, endpoint: str) -> str:
@@ -48,9 +49,14 @@ class BidirectionalNetworkLink:
 
 
 class RoutedNetworkTopology:
-    def __init__(self, compute_node_count: int, links: list[BidirectionalNetworkLink]) -> None:
+    def __init__(
+        self,
+        compute_node_count: int,
+        links: list[BidirectionalNetworkLink],
+    ) -> None:
         if compute_node_count < 1:
             raise ValueError("compute_node_count must be positive")
+
         self.compute_node_count = compute_node_count
         self.links = links
         self.links_by_endpoint: dict[str, list[BidirectionalNetworkLink]] = {}
@@ -87,18 +93,21 @@ class RoutedNetworkTopology:
         source_endpoint = self.compute_node_endpoint(source_node_id)
         destination_endpoint = self.compute_node_endpoint(destination_node_id)
         route = self._find_and_cache_shortest_hop_route(
-            source_endpoint,
-            destination_endpoint,
+            source_endpoint=source_endpoint,
+            destination_endpoint=destination_endpoint,
         )
 
         directional_resources: list[SerializedThroughputResource] = []
-        current_endpoint = source_endpoint
-        total_fixed_latency_ns = 0.0
         serialization_duration_by_resource: list[float] = []
+        total_fixed_latency_ns = 0.0
+        current_endpoint = source_endpoint
 
         for link in route:
             next_endpoint = link.other_endpoint(current_endpoint)
-            resource = link.directional_resource(current_endpoint, next_endpoint)
+            resource = link.directional_resource(
+                source_endpoint=current_endpoint,
+                destination_endpoint=next_endpoint,
+            )
             directional_resources.append(resource)
             serialization_duration_by_resource.append(
                 byte_count / resource.work_units_per_ns
@@ -115,10 +124,12 @@ class RoutedNetworkTopology:
             directional_resources,
             serialization_duration_by_resource,
         ):
-            resource.reserve_exact_interval(
-                ready_time_ns,
-                serialization_start_time_ns,
-                serialization_start_time_ns + serialization_duration_ns,
+            resource.reserve_exact_interval_as_productive_work(
+                ready_time_ns=ready_time_ns,
+                service_start_time_ns=serialization_start_time_ns,
+                service_end_time_ns=(
+                    serialization_start_time_ns + serialization_duration_ns
+                ),
             )
 
         arrival_time_ns = (
@@ -195,14 +206,14 @@ class NetworkTopologyFactory:
         fixed_latency_ns_per_link: float,
     ) -> RoutedNetworkTopology:
         return RoutedNetworkTopology(
-            compute_node_count,
-            [
+            compute_node_count=compute_node_count,
+            links=[
                 BidirectionalNetworkLink(
-                    f"direct_{node_a}_{node_b}",
-                    RoutedNetworkTopology.compute_node_endpoint(node_a),
-                    RoutedNetworkTopology.compute_node_endpoint(node_b),
-                    bytes_per_ns_each_direction,
-                    fixed_latency_ns_per_link,
+                    link_name=f"direct_{node_a}_{node_b}",
+                    endpoint_a=RoutedNetworkTopology.compute_node_endpoint(node_a),
+                    endpoint_b=RoutedNetworkTopology.compute_node_endpoint(node_b),
+                    bytes_per_ns_each_direction=bytes_per_ns_each_direction,
+                    fixed_latency_ns=fixed_latency_ns_per_link,
                 )
                 for node_a in range(compute_node_count)
                 for node_b in range(node_a + 1, compute_node_count)
@@ -216,14 +227,14 @@ class NetworkTopologyFactory:
         fixed_latency_ns_per_link: float,
     ) -> RoutedNetworkTopology:
         return RoutedNetworkTopology(
-            compute_node_count,
-            [
+            compute_node_count=compute_node_count,
+            links=[
                 BidirectionalNetworkLink(
-                    f"chain_{node_id}_{node_id + 1}",
-                    RoutedNetworkTopology.compute_node_endpoint(node_id),
-                    RoutedNetworkTopology.compute_node_endpoint(node_id + 1),
-                    bytes_per_ns_each_direction,
-                    fixed_latency_ns_per_link,
+                    link_name=f"chain_{node_id}_{node_id + 1}",
+                    endpoint_a=RoutedNetworkTopology.compute_node_endpoint(node_id),
+                    endpoint_b=RoutedNetworkTopology.compute_node_endpoint(node_id + 1),
+                    bytes_per_ns_each_direction=bytes_per_ns_each_direction,
+                    fixed_latency_ns=fixed_latency_ns_per_link,
                 )
                 for node_id in range(compute_node_count - 1)
             ],
@@ -237,21 +248,22 @@ class NetworkTopologyFactory:
     ) -> RoutedNetworkTopology:
         if compute_node_count < 3:
             return NetworkTopologyFactory.create_direct_full_mesh_between_compute_nodes(
-                compute_node_count,
-                bytes_per_ns_each_direction,
-                fixed_latency_ns_per_link,
+                compute_node_count=compute_node_count,
+                bytes_per_ns_each_direction=bytes_per_ns_each_direction,
+                fixed_latency_ns_per_link=fixed_latency_ns_per_link,
             )
+
         return RoutedNetworkTopology(
-            compute_node_count,
-            [
+            compute_node_count=compute_node_count,
+            links=[
                 BidirectionalNetworkLink(
-                    f"ring_{node_id}_{(node_id + 1) % compute_node_count}",
-                    RoutedNetworkTopology.compute_node_endpoint(node_id),
-                    RoutedNetworkTopology.compute_node_endpoint(
+                    link_name=f"ring_{node_id}_{(node_id + 1) % compute_node_count}",
+                    endpoint_a=RoutedNetworkTopology.compute_node_endpoint(node_id),
+                    endpoint_b=RoutedNetworkTopology.compute_node_endpoint(
                         (node_id + 1) % compute_node_count
                     ),
-                    bytes_per_ns_each_direction,
-                    fixed_latency_ns_per_link,
+                    bytes_per_ns_each_direction=bytes_per_ns_each_direction,
+                    fixed_latency_ns=fixed_latency_ns_per_link,
                 )
                 for node_id in range(compute_node_count)
             ],
@@ -265,14 +277,14 @@ class NetworkTopologyFactory:
     ) -> RoutedNetworkTopology:
         switch_endpoint = "switch:0"
         return RoutedNetworkTopology(
-            compute_node_count,
-            [
+            compute_node_count=compute_node_count,
+            links=[
                 BidirectionalNetworkLink(
-                    f"switch_link_{node_id}",
-                    RoutedNetworkTopology.compute_node_endpoint(node_id),
-                    switch_endpoint,
-                    bytes_per_ns_each_direction_per_node_link,
-                    fixed_latency_ns_per_link,
+                    link_name=f"switch_link_{node_id}",
+                    endpoint_a=RoutedNetworkTopology.compute_node_endpoint(node_id),
+                    endpoint_b=switch_endpoint,
+                    bytes_per_ns_each_direction=bytes_per_ns_each_direction_per_node_link,
+                    fixed_latency_ns=fixed_latency_ns_per_link,
                 )
                 for node_id in range(compute_node_count)
             ],

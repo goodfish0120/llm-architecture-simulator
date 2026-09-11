@@ -41,13 +41,27 @@ class SerializedThroughputResource:
         service_end_time_ns = service_start_time_ns + service_duration_ns
 
         self.reserve_interval_and_record_productive_subinterval(
-            ready_time_ns,
-            service_start_time_ns,
-            service_end_time_ns,
-            service_start_time_ns,
-            service_end_time_ns,
+            ready_time_ns=ready_time_ns,
+            reserved_start_time_ns=service_start_time_ns,
+            reserved_end_time_ns=service_end_time_ns,
+            productive_start_time_ns=service_start_time_ns,
+            productive_end_time_ns=service_end_time_ns,
         )
         return service_start_time_ns, service_end_time_ns
+
+    def reserve_exact_interval_as_productive_work(
+        self,
+        ready_time_ns: float,
+        service_start_time_ns: float,
+        service_end_time_ns: float,
+    ) -> None:
+        self.reserve_interval_and_record_productive_subinterval(
+            ready_time_ns=ready_time_ns,
+            reserved_start_time_ns=service_start_time_ns,
+            reserved_end_time_ns=service_end_time_ns,
+            productive_start_time_ns=service_start_time_ns,
+            productive_end_time_ns=service_end_time_ns,
+        )
 
     def reserve_interval_and_record_productive_subinterval(
         self,
@@ -144,7 +158,9 @@ class OverlappedComputeAndMemoryKernelExecution:
 class ComputeAndMemoryNode:
     compute_resource: SerializedThroughputResource
     memory_resource: SerializedThroughputResource
-    executed_kernels: list[OverlappedComputeAndMemoryKernelExecution] = field(default_factory=list)
+    executed_kernels: list[OverlappedComputeAndMemoryKernelExecution] = field(
+        default_factory=list
+    )
 
     def execute_kernel_with_compute_and_memory_overlap(
         self,
@@ -176,25 +192,25 @@ class ComputeAndMemoryNode:
         memory_productive_end_time_ns = service_start_time_ns + memory_duration_ns
 
         self.compute_resource.reserve_interval_and_record_productive_subinterval(
-            ready_time_ns,
-            service_start_time_ns,
-            service_end_time_ns,
-            service_start_time_ns,
-            compute_productive_end_time_ns,
+            ready_time_ns=ready_time_ns,
+            reserved_start_time_ns=service_start_time_ns,
+            reserved_end_time_ns=service_end_time_ns,
+            productive_start_time_ns=service_start_time_ns,
+            productive_end_time_ns=compute_productive_end_time_ns,
         )
         self.memory_resource.reserve_interval_and_record_productive_subinterval(
-            ready_time_ns,
-            service_start_time_ns,
-            service_end_time_ns,
-            service_start_time_ns,
-            memory_productive_end_time_ns,
+            ready_time_ns=ready_time_ns,
+            reserved_start_time_ns=service_start_time_ns,
+            reserved_end_time_ns=service_end_time_ns,
+            productive_start_time_ns=service_start_time_ns,
+            productive_end_time_ns=memory_productive_end_time_ns,
         )
         self.executed_kernels.append(
             OverlappedComputeAndMemoryKernelExecution(
-                service_start_time_ns,
-                service_end_time_ns,
-                compute_productive_end_time_ns,
-                memory_productive_end_time_ns,
+                service_start_time_ns=service_start_time_ns,
+                service_end_time_ns=service_end_time_ns,
+                compute_productive_end_time_ns=compute_productive_end_time_ns,
+                memory_productive_end_time_ns=memory_productive_end_time_ns,
             )
         )
 
