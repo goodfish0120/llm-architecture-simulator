@@ -13,3 +13,6 @@ jobs:
         with:
           python-version: "3.12"
       - run: python -m unittest discover -s tests
+      - run: python run_simulator.py --ms 2 --window-ms 1 --warmup-ms 0
+      - run: python -m pip install -e .
+      - run: llm-architecture-simulator --ms 2 --window-ms 1 --warmup-ms 0
