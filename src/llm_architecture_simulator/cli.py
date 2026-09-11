@@ -8,6 +8,14 @@ from .stochastic_moe_simulation import (
 )
 
 
+def parse_optional_comma_separated_layer_indexes(value: str | None) -> tuple[int, ...] | None:
+    if value is None:
+        return None
+    if not value.strip():
+        return tuple()
+    return tuple(int(part.strip()) for part in value.split(","))
+
+
 def main() -> None:
     argument_parser = argparse.ArgumentParser(
         description="Run a stochastic LLM/MoE architecture simulation"
@@ -18,19 +26,32 @@ def main() -> None:
     argument_parser.add_argument("--nodes", type=int, default=4)
     argument_parser.add_argument("--agents", type=int, default=128)
     argument_parser.add_argument("--layers", type=int, default=4)
+    argument_parser.add_argument(
+        "--moe-layers",
+        type=str,
+        default=None,
+        help="comma-separated layer indexes; omitted means every layer is MoE",
+    )
     argument_parser.add_argument("--experts", type=int, default=16)
     argument_parser.add_argument("--top-k", type=int, default=2)
     argument_parser.add_argument("--batch-window-us", type=float, default=1000.0)
+    argument_parser.add_argument(
+        "--network-topology",
+        choices=("switch_star", "full_mesh", "daisy_chain", "ring"),
+        default="switch_star",
+    )
     argument_parser.add_argument("--seed", type=int, default=7)
     arguments = argument_parser.parse_args()
 
     configuration = StochasticMoeSimulationConfiguration(
         node_count=arguments.nodes,
         continuously_active_agent_count=arguments.agents,
-        moe_layer_count=arguments.layers,
-        routed_expert_count_per_layer=arguments.experts,
+        model_layer_count=arguments.layers,
+        moe_layer_indexes=parse_optional_comma_separated_layer_indexes(arguments.moe_layers),
+        routed_expert_count_per_moe_layer=arguments.experts,
         selected_expert_count_per_token=arguments.top_k,
         expert_batching_window_ns=arguments.batch_window_us * 1e3,
+        network_topology_kind=arguments.network_topology,
         random_seed=arguments.seed,
     )
     simulator = StochasticMoeArchitectureSimulator(configuration)
