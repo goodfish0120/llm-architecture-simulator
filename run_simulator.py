@@ -1,4 +1,4 @@
-from llm_architecture_simulator.cli import main
+from src.llm_architecture_simulator.cli import main
 
 
 if __name__ == "__main__":
