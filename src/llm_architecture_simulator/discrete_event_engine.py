@@ -60,9 +60,15 @@ class DiscreteEventSimulationEngine:
         end_time_ns: float,
         maximum_event_count: int | None = None,
     ) -> int:
+        if end_time_ns < self.current_time_ns:
+            raise ValueError("end_time_ns cannot move simulation time backwards")
+
         executed_event_count = 0
+        stopped_because_event_limit_was_reached = False
+
         while self.pending_events:
             if maximum_event_count is not None and executed_event_count >= maximum_event_count:
+                stopped_because_event_limit_was_reached = True
                 break
 
             next_event = heapq.heappop(self.pending_events)
@@ -76,6 +82,9 @@ class DiscreteEventSimulationEngine:
                 raise KeyError(f"no handler registered for {next_event.event_type}")
             handler(self, next_event)
             executed_event_count += 1
+
+        if not stopped_because_event_limit_was_reached:
+            self.current_time_ns = end_time_ns
 
         return executed_event_count
 
