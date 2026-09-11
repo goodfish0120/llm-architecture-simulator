@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import argparse
 
-from .stochastic_moe_simulation import (
-    StochasticMoeArchitectureSimulator,
+from .simulation_configuration import (
     StochasticMoeSimulationConfiguration,
+    TransformerLayerConfiguration,
 )
+from .stochastic_moe_simulation import StochasticMoeArchitectureSimulator
 
 
-def parse_optional_comma_separated_layer_indexes(value: str | None) -> tuple[int, ...] | None:
+def parse_optional_comma_separated_layer_indexes(
+    value: str | None,
+) -> tuple[int, ...] | None:
     if value is None:
         return None
     if not value.strip():
@@ -16,7 +19,7 @@ def parse_optional_comma_separated_layer_indexes(value: str | None) -> tuple[int
     return tuple(int(part.strip()) for part in value.split(","))
 
 
-def main() -> None:
+def parse_command_line_arguments() -> argparse.Namespace:
     argument_parser = argparse.ArgumentParser(
         description="Run a stochastic LLM/MoE architecture simulation"
     )
@@ -40,49 +43,153 @@ def main() -> None:
         choices=("switch_star", "full_mesh", "daisy_chain", "ring"),
         default="switch_star",
     )
+    argument_parser.add_argument(
+        "--rendezvous-policy",
+        choices=("sequence_owner", "largest_local_expert_group"),
+        default="sequence_owner",
+    )
     argument_parser.add_argument("--seed", type=int, default=7)
-    arguments = argument_parser.parse_args()
+    return argument_parser.parse_args()
 
-    configuration = StochasticMoeSimulationConfiguration(
+
+def create_model_layers_from_command_line_arguments(
+    arguments: argparse.Namespace,
+) -> tuple[TransformerLayerConfiguration, ...]:
+    requested_moe_layer_indexes = parse_optional_comma_separated_layer_indexes(
+        arguments.moe_layers
+    )
+    moe_layer_indexes = (
+        set(range(arguments.layers))
+        if requested_moe_layer_indexes is None
+        else set(requested_moe_layer_indexes)
+    )
+    if any(
+        layer_index < 0 or layer_index >= arguments.layers
+        for layer_index in moe_layer_indexes
+    ):
+        raise ValueError("--moe-layers contains a layer outside --layers")
+
+    return tuple(
+        TransformerLayerConfiguration(
+            routed_expert_count=arguments.experts,
+            selected_expert_count_per_token=arguments.top_k,
+        )
+        if layer_index in moe_layer_indexes
+        else TransformerLayerConfiguration()
+        for layer_index in range(arguments.layers)
+    )
+
+
+def create_simulation_configuration_from_command_line_arguments(
+    arguments: argparse.Namespace,
+) -> StochasticMoeSimulationConfiguration:
+    return StochasticMoeSimulationConfiguration(
         node_count=arguments.nodes,
         continuously_active_agent_count=arguments.agents,
-        model_layer_count=arguments.layers,
-        moe_layer_indexes=parse_optional_comma_separated_layer_indexes(arguments.moe_layers),
-        routed_expert_count_per_moe_layer=arguments.experts,
-        selected_expert_count_per_token=arguments.top_k,
+        model_layers=create_model_layers_from_command_line_arguments(arguments),
         expert_batching_window_ns=arguments.batch_window_us * 1e3,
         network_topology_kind=arguments.network_topology,
+        expert_result_rendezvous_policy=arguments.rendezvous_policy,
         random_seed=arguments.seed,
     )
-    simulator = StochasticMoeArchitectureSimulator(configuration)
-    simulation_duration_ns = arguments.ms * 1e6
-    observer = simulator.run_for_simulated_nanoseconds(simulation_duration_ns)
 
+
+def print_throughput_windows(
+    simulator: StochasticMoeArchitectureSimulator,
+    simulation_duration_ns: float,
+    measurement_window_ns: float,
+    warmup_time_ns: float,
+) -> None:
     print("window,tokens_per_second")
-    for window_index, tokens_per_second in enumerate(
-        observer.calculate_tokens_per_second_for_fixed_time_windows(
-            simulation_duration_ns,
-            arguments.window_ms * 1e6,
-            arguments.warmup_ms * 1e6,
+    tokens_per_second_by_window = (
+        simulator.observer.calculate_tokens_per_second_for_fixed_time_windows(
+            simulation_end_time_ns=simulation_duration_ns,
+            measurement_window_ns=measurement_window_ns,
+            warmup_time_ns=warmup_time_ns,
         )
-    ):
+    )
+    for window_index, tokens_per_second in enumerate(tokens_per_second_by_window):
         print(f"{window_index},{tokens_per_second:.0f}")
 
+
+def print_steady_state_summary(
+    simulator: StochasticMoeArchitectureSimulator,
+    simulation_duration_ns: float,
+    measurement_window_ns: float,
+    warmup_time_ns: float,
+) -> None:
     print("\nsummary")
-    for metric_name, metric_value in observer.summarize_steady_state_behavior(
-        simulation_duration_ns,
-        arguments.window_ms * 1e6,
-        arguments.warmup_ms * 1e6,
-    ).items():
+    summary = simulator.observer.summarize_steady_state_behavior(
+        simulation_end_time_ns=simulation_duration_ns,
+        measurement_window_ns=measurement_window_ns,
+        warmup_time_ns=warmup_time_ns,
+    )
+    for metric_name, metric_value in summary.items():
         print(f"{metric_name}: {metric_value}")
 
+
+def print_resource_occupancy(
+    simulator: StochasticMoeArchitectureSimulator,
+    simulation_duration_ns: float,
+) -> None:
     print("\nresource_occupancy")
-    for resource_name, occupancy_fraction in (
+    occupancy_by_resource = (
         simulator.calculate_resource_occupancy_over_simulation_duration(
-            simulation_duration_ns
-        ).items()
-    ):
+            simulation_duration_ns=simulation_duration_ns
+        )
+    )
+    for resource_name, occupancy_fraction in occupancy_by_resource.items():
         print(f"{resource_name}: {occupancy_fraction:.1%}")
+
+
+def print_compute_and_memory_idle_reasons(
+    simulator: StochasticMoeArchitectureSimulator,
+    simulation_duration_ns: float,
+) -> None:
+    print("\ncompute_and_memory_idle_reasons")
+    idle_reasons_by_node = simulator.calculate_compute_and_memory_idle_reasons_between_times(
+        measurement_start_time_ns=0.0,
+        measurement_end_time_ns=simulation_duration_ns,
+    )
+    for node_name, idle_reasons in idle_reasons_by_node.items():
+        print(node_name)
+        for reason_name, fraction in idle_reasons.items():
+            print(f"  {reason_name}: {fraction:.1%}")
+
+
+def main() -> None:
+    arguments = parse_command_line_arguments()
+    configuration = create_simulation_configuration_from_command_line_arguments(arguments)
+    simulator = StochasticMoeArchitectureSimulator(configuration)
+
+    simulation_duration_ns = arguments.ms * 1e6
+    measurement_window_ns = arguments.window_ms * 1e6
+    warmup_time_ns = arguments.warmup_ms * 1e6
+
+    simulator.run_for_simulated_nanoseconds(
+        simulation_duration_ns=simulation_duration_ns
+    )
+
+    print_throughput_windows(
+        simulator=simulator,
+        simulation_duration_ns=simulation_duration_ns,
+        measurement_window_ns=measurement_window_ns,
+        warmup_time_ns=warmup_time_ns,
+    )
+    print_steady_state_summary(
+        simulator=simulator,
+        simulation_duration_ns=simulation_duration_ns,
+        measurement_window_ns=measurement_window_ns,
+        warmup_time_ns=warmup_time_ns,
+    )
+    print_resource_occupancy(
+        simulator=simulator,
+        simulation_duration_ns=simulation_duration_ns,
+    )
+    print_compute_and_memory_idle_reasons(
+        simulator=simulator,
+        simulation_duration_ns=simulation_duration_ns,
+    )
 
 
 if __name__ == "__main__":

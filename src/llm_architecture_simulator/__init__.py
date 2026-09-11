@@ -1,11 +1,13 @@
 from .observations import SimulationObserver
-from .stochastic_moe_simulation import (
-    StochasticMoeArchitectureSimulator,
+from .simulation_configuration import (
     StochasticMoeSimulationConfiguration,
+    TransformerLayerConfiguration,
 )
+from .stochastic_moe_simulation import StochasticMoeArchitectureSimulator
 
 __all__ = [
     "SimulationObserver",
     "StochasticMoeArchitectureSimulator",
     "StochasticMoeSimulationConfiguration",
+    "TransformerLayerConfiguration",
 ]

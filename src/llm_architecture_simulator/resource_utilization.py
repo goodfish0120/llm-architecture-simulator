@@ -2,11 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .hardware_resources import (
-    ComputeAndMemoryNode,
-    SerializedThroughputResource,
-    _calculate_interval_overlap_ns,
-)
+from .hardware_resources import ComputeAndMemoryNode, SerializedThroughputResource
 
 
 @dataclass(frozen=True)
@@ -25,6 +21,17 @@ class ResourceUtilizationBreakdown:
             "reserved_but_not_productive": self.reserved_but_not_productive_fraction,
             "completely_idle": self.completely_idle_fraction,
         }
+
+
+def calculate_interval_overlap_ns(
+    interval_start_ns: float,
+    interval_end_ns: float,
+    measurement_start_ns: float,
+    measurement_end_ns: float,
+) -> float:
+    overlap_start_ns = max(interval_start_ns, measurement_start_ns)
+    overlap_end_ns = min(interval_end_ns, measurement_end_ns)
+    return max(0.0, overlap_end_ns - overlap_start_ns)
 
 
 def calculate_serialized_resource_utilization_between_times(
@@ -79,16 +86,17 @@ def calculate_compute_and_memory_idle_reason_fractions_between_times(
 
     compute_waiting_for_memory_ns = 0.0
     memory_waiting_for_compute_ns = 0.0
+
     for kernel in node.executed_kernels:
         if kernel.memory_productive_end_time_ns > kernel.compute_productive_end_time_ns:
-            compute_waiting_for_memory_ns += _calculate_interval_overlap_ns(
+            compute_waiting_for_memory_ns += calculate_interval_overlap_ns(
                 kernel.compute_productive_end_time_ns,
                 kernel.service_end_time_ns,
                 measurement_start_time_ns,
                 measurement_end_time_ns,
             )
         elif kernel.compute_productive_end_time_ns > kernel.memory_productive_end_time_ns:
-            memory_waiting_for_compute_ns += _calculate_interval_overlap_ns(
+            memory_waiting_for_compute_ns += calculate_interval_overlap_ns(
                 kernel.memory_productive_end_time_ns,
                 kernel.service_end_time_ns,
                 measurement_start_time_ns,

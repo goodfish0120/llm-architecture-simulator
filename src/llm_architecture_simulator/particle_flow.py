@@ -17,6 +17,7 @@ class LogicalWorkUnit:
     dependency_join_id: str | None = None
     branch_index_inside_dependency_join: int | None = None
     node_that_owns_sequence_state: int | None = None
+    expert_result_rendezvous_node_id: int | None = None
 
 
 @dataclass(frozen=True)
@@ -71,13 +72,16 @@ class WorkParticle:
         if not self.can_batch_with(other, batching_rule, batching_window_ns):
             raise ValueError("work particles are not batch-compatible")
         return WorkParticle(
-            self.logical_work_units + other.logical_work_units,
-            self.operation_name,
-            max(self.earliest_ready_time_ns, other.earliest_ready_time_ns),
-            self.current_node_id,
-            self.route_name,
-            self.model_layer_index,
-            self.resource_width_per_unit,
+            logical_work_units=self.logical_work_units + other.logical_work_units,
+            operation_name=self.operation_name,
+            earliest_ready_time_ns=max(
+                self.earliest_ready_time_ns,
+                other.earliest_ready_time_ns,
+            ),
+            current_node_id=self.current_node_id,
+            route_name=self.route_name,
+            model_layer_index=self.model_layer_index,
+            resource_width_per_unit=self.resource_width_per_unit,
         )
 
     def split_to_fit_maximum_logical_units(
@@ -88,25 +92,26 @@ class WorkParticle:
             raise ValueError("maximum_logical_units must be positive")
         if self.logical_unit_count <= maximum_logical_units:
             return self, None
-        first = WorkParticle(
-            self.logical_work_units[:maximum_logical_units],
-            self.operation_name,
-            self.earliest_ready_time_ns,
-            self.current_node_id,
-            self.route_name,
-            self.model_layer_index,
-            self.resource_width_per_unit,
+
+        selected_particle = WorkParticle(
+            logical_work_units=self.logical_work_units[:maximum_logical_units],
+            operation_name=self.operation_name,
+            earliest_ready_time_ns=self.earliest_ready_time_ns,
+            current_node_id=self.current_node_id,
+            route_name=self.route_name,
+            model_layer_index=self.model_layer_index,
+            resource_width_per_unit=self.resource_width_per_unit,
         )
-        remainder = WorkParticle(
-            self.logical_work_units[maximum_logical_units:],
-            self.operation_name,
-            self.earliest_ready_time_ns,
-            self.current_node_id,
-            self.route_name,
-            self.model_layer_index,
-            self.resource_width_per_unit,
+        remainder_particle = WorkParticle(
+            logical_work_units=self.logical_work_units[maximum_logical_units:],
+            operation_name=self.operation_name,
+            earliest_ready_time_ns=self.earliest_ready_time_ns,
+            current_node_id=self.current_node_id,
+            route_name=self.route_name,
+            model_layer_index=self.model_layer_index,
+            resource_width_per_unit=self.resource_width_per_unit,
         )
-        return first, remainder
+        return selected_particle, remainder_particle
 
 
 class DependencyJoinTracker:
@@ -114,20 +119,37 @@ class DependencyJoinTracker:
         self.expected_branch_count_by_join_id: dict[str, int] = {}
         self.arrived_branch_indexes_by_join_id: dict[str, set[int]] = {}
 
-    def register_expected_branch_count(self, dependency_join_id: str, branch_count: int) -> None:
+    def register_expected_branch_count(
+        self,
+        dependency_join_id: str,
+        branch_count: int,
+    ) -> None:
+        if branch_count < 1:
+            raise ValueError("branch_count must be positive")
+        if dependency_join_id in self.expected_branch_count_by_join_id:
+            raise ValueError(f"dependency join already exists: {dependency_join_id}")
         self.expected_branch_count_by_join_id[dependency_join_id] = branch_count
 
-    def accept_completed_branches_and_release_finished_tokens(
+    def accept_completed_branches_and_release_tokens_after_all_selected_experts_finish(
         self,
         particle: WorkParticle,
         next_operation_name: str,
         ready_time_ns: float,
     ) -> list[WorkParticle]:
-        released_units_by_owner: dict[int | None, list[LogicalWorkUnit]] = {}
+        if particle.current_node_id is None:
+            raise ValueError("completed expert branches require a rendezvous node")
+
+        released_units_by_sequence_owner: dict[int, list[LogicalWorkUnit]] = {}
 
         for unit in particle.logical_work_units:
-            if unit.dependency_join_id is None or unit.branch_index_inside_dependency_join is None:
-                raise ValueError("dependency identity is missing")
+            if unit.dependency_join_id is None:
+                raise ValueError("dependency_join_id is missing")
+            if unit.branch_index_inside_dependency_join is None:
+                raise ValueError("branch_index_inside_dependency_join is missing")
+            if unit.node_that_owns_sequence_state is None:
+                raise ValueError("node_that_owns_sequence_state is missing")
+            if unit.expert_result_rendezvous_node_id != particle.current_node_id:
+                raise ValueError("expert branch arrived at the wrong rendezvous node")
 
             arrived_branch_indexes = self.arrived_branch_indexes_by_join_id.setdefault(
                 unit.dependency_join_id,
@@ -135,24 +157,32 @@ class DependencyJoinTracker:
             )
             arrived_branch_indexes.add(unit.branch_index_inside_dependency_join)
 
-            if len(arrived_branch_indexes) >= self.expected_branch_count_by_join_id[unit.dependency_join_id]:
-                released_units_by_owner.setdefault(unit.node_that_owns_sequence_state, []).append(
-                    LogicalWorkUnit(
-                        globally_unique_token_id=unit.globally_unique_token_id,
-                        workload_agent_id=unit.workload_agent_id,
-                        node_that_owns_sequence_state=unit.node_that_owns_sequence_state,
-                    )
+            expected_branch_count = self.expected_branch_count_by_join_id[
+                unit.dependency_join_id
+            ]
+            if len(arrived_branch_indexes) < expected_branch_count:
+                continue
+
+            released_units_by_sequence_owner.setdefault(
+                unit.node_that_owns_sequence_state,
+                [],
+            ).append(
+                LogicalWorkUnit(
+                    globally_unique_token_id=unit.globally_unique_token_id,
+                    workload_agent_id=unit.workload_agent_id,
+                    node_that_owns_sequence_state=unit.node_that_owns_sequence_state,
                 )
-                del self.arrived_branch_indexes_by_join_id[unit.dependency_join_id]
-                del self.expected_branch_count_by_join_id[unit.dependency_join_id]
+            )
+            del self.arrived_branch_indexes_by_join_id[unit.dependency_join_id]
+            del self.expected_branch_count_by_join_id[unit.dependency_join_id]
 
         return [
             WorkParticle(
-                tuple(units),
-                next_operation_name,
-                ready_time_ns,
-                owner_node_id,
+                logical_work_units=tuple(units),
+                operation_name=next_operation_name,
+                earliest_ready_time_ns=ready_time_ns,
+                current_node_id=particle.current_node_id,
                 model_layer_index=particle.model_layer_index,
             )
-            for owner_node_id, units in released_units_by_owner.items()
+            for units in released_units_by_sequence_owner.values()
         ]
