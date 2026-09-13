@@ -40,6 +40,17 @@ The optimizer reports the memory-bound throughput ceiling against accumulated
 layer-round waiting and marks the non-dominated candidates in
 `results/deferred_expert_batching.csv`.
 
+Model fork-heavy workloads with a mostly shared 20K system prefix, a partially
+shared 20K-60K family context, and an independent suffix:
+
+```bash
+python run_prefix_fork_scenarios.py
+python plot_prefix_fork_scenarios.py
+```
+
+This is an optimistic prefix-aware batching model: storage uses copy-on-write,
+and co-scheduled queries reuse identical KV-prefix reads within their fork group.
+
 Current default hardware values are synthetic. The simulator is currently useful for mechanism experiments and controlled comparisons; calibrated hardware profiles will replace synthetic timings over time.
 
 ## AI development disclosure
