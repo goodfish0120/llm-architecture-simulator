@@ -29,6 +29,17 @@ The sweep writes a CSV plus a JSON assumptions manifest under `results/`. It
 uses official checkpoint sizes and published architecture fields, but its M5
 kernel throughput remains an explicit assumption rather than a benchmark.
 
+Screen cold-expert requests for two-to-four-round deferred batching before
+adding a scheduling policy to the event simulator:
+
+```bash
+python optimize_deferred_expert_batching.py
+```
+
+The optimizer reports the memory-bound throughput ceiling against accumulated
+layer-round waiting and marks the non-dominated candidates in
+`results/deferred_expert_batching.csv`.
+
 Current default hardware values are synthetic. The simulator is currently useful for mechanism experiments and controlled comparisons; calibrated hardware profiles will replace synthetic timings over time.
 
 ## AI development disclosure
