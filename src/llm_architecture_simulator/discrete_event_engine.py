@@ -146,6 +146,49 @@ class ParticleBatchingGate:
                 self.waiting_particles.pop(index)
             else:
                 self.waiting_particles[index] = remainder
+
+            # The batching window limits intentional waiting. Once the resource is
+            # available, compatible work that is already ready can be coalesced
+            # without adding latency. This matters under load: otherwise every
+            # arrival-window fragment remains a separate kernel forever.
+            if self.batching_rule == ParticleBatchingRule.NEVER_BATCH:
+                return selected_particle
+
+            remaining_capacity = maximum_logical_units - selected_particle.logical_unit_count
+            scan_index = 0
+            while remaining_capacity > 0 and scan_index < len(self.waiting_particles):
+                candidate = self.waiting_particles[scan_index]
+                if candidate.earliest_ready_time_ns > current_time_ns:
+                    scan_index += 1
+                    continue
+                if candidate.batching_identity != selected_particle.batching_identity:
+                    scan_index += 1
+                    continue
+
+                taken, candidate_remainder = (
+                    candidate.split_to_fit_maximum_logical_units(remaining_capacity)
+                )
+                selected_particle = WorkParticle(
+                    logical_work_units=(
+                        selected_particle.logical_work_units + taken.logical_work_units
+                    ),
+                    operation_name=selected_particle.operation_name,
+                    earliest_ready_time_ns=max(
+                        selected_particle.earliest_ready_time_ns,
+                        taken.earliest_ready_time_ns,
+                    ),
+                    current_node_id=selected_particle.current_node_id,
+                    route_name=selected_particle.route_name,
+                    model_layer_index=selected_particle.model_layer_index,
+                    resource_width_per_unit=selected_particle.resource_width_per_unit,
+                )
+                remaining_capacity -= taken.logical_unit_count
+                if candidate_remainder is None:
+                    self.waiting_particles.pop(scan_index)
+                else:
+                    self.waiting_particles[scan_index] = candidate_remainder
+                    scan_index += 1
+
             return selected_particle
 
         return None

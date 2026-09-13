@@ -1,0 +1,84 @@
+{
+  "hardware": {
+    "node": "Mac Studio M5 Ultra, 80-core GPU, 512 GB unified memory",
+    "memory_bandwidth_gb_per_second_per_node": 1200.0,
+    "usable_memory_fraction": 0.9,
+    "assumed_effective_compute_tflops_per_node": 100.0
+  },
+  "network": {
+    "transport": "RDMA over Thunderbolt 5",
+    "topology": "direct full mesh; six ports per node support at most seven fully connected nodes",
+    "physical_bandwidth_gbps_each_direction": 80.0,
+    "modeled_effective_bandwidth_gbps_each_direction": 60.0,
+    "modeled_fixed_latency_microseconds_per_original_layer": 50.0
+  },
+  "capacity": {
+    "context_tokens_per_agent": 100000,
+    "kv_resident_fraction": 0.8,
+    "kv_cache_bytes_per_context_token_are_architecture_estimates": true
+  },
+  "saturation_search": {
+    "agent_counts": "logarithmic pressure sweep plus exact low-concurrency and memory-ceiling points; saturation is the first point reaching 95 percent of the observed peak",
+    "samples_per_decade": 6,
+    "completed_tokens_per_agent_target": 10,
+    "plateau_gain": 0.05,
+    "maximum_agents_is_runaway_guard_not_claimed_limit": 4096
+  },
+  "model_profiles": [
+    {
+      "name": "Kimi K3",
+      "checkpoint_bytes": 1560936091448,
+      "transformer_parameter_count": 2800000000000.0,
+      "active_transformer_parameter_count_per_decode_token": 104000000000.0,
+      "auxiliary_parameter_count": 401000000.0,
+      "layer_count": 93,
+      "dense_layer_count": 1,
+      "routed_expert_count": 896,
+      "selected_routed_expert_count_per_token": 16,
+      "hidden_size": 7168,
+      "approximate_kv_cache_bytes_per_context_token": 27648,
+      "checkpoint_format": "official mixed MXFP4/BF16 checkpoint",
+      "source_url": "https://huggingface.co/moonshotai/Kimi-K3"
+    },
+    {
+      "name": "DeepSeek V4.1 Flash",
+      "checkpoint_bytes": 510296708312,
+      "transformer_parameter_count": 552000000000.0,
+      "active_transformer_parameter_count_per_decode_token": 16000000000.0,
+      "auxiliary_parameter_count": 196000000000.0,
+      "layer_count": 40,
+      "dense_layer_count": 0,
+      "routed_expert_count": 384,
+      "selected_routed_expert_count_per_token": 6,
+      "hidden_size": 5120,
+      "approximate_kv_cache_bytes_per_context_token": 40960,
+      "checkpoint_format": "official mixed FP8/FP4 checkpoint",
+      "source_url": "https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash"
+    },
+    {
+      "name": "Qwen3.8 Flash Next",
+      "checkpoint_bytes": 360000192888,
+      "transformer_parameter_count": 125000000000.0,
+      "active_transformer_parameter_count_per_decode_token": 6000000000.0,
+      "auxiliary_parameter_count": 55000000000.0,
+      "layer_count": 48,
+      "dense_layer_count": 0,
+      "routed_expert_count": 512,
+      "selected_routed_expert_count_per_token": 10,
+      "hidden_size": 2560,
+      "approximate_kv_cache_bytes_per_context_token": 12288,
+      "checkpoint_format": "official BF16 checkpoint",
+      "source_url": "https://huggingface.co/Qwen/Qwen3.8-Flash-Next"
+    }
+  ],
+  "limitations": [
+    "This is a mechanism simulation, not an M5 Ultra benchmark.",
+    "Repeated transformer layers are collapsed into one equivalent-work macro layer for the saturation sweep.",
+    "Apple does not publish the effective model-kernel TFLOPS used here.",
+    "Checkpoint bytes are measured from the official Hugging Face shards.",
+    "Ten percent of unified memory is reserved for runtime and non-KV headroom.",
+    "KV cache estimates omit architecture-specific fixed recurrent state.",
+    "The non-resident KV fraction is treated as compressed or omitted; miss recovery is not modeled.",
+    "Sparse auxiliary or n-gram stores count for capacity but not dense FLOPs."
+  ]
+}

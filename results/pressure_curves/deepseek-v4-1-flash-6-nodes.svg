@@ -1,0 +1,124 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="900" viewBox="0 0 1200 900" role="img" aria-labelledby="title desc">
+<title id="title">DeepSeek V4.1 Flash, 6 nodes: agent pressure curve</title>
+<desc id="desc">Throughput, mean token latency, and expert batch size as active agent count rises to the memory limit.</desc>
+<style>
+  :root { color-scheme: light dark; }
+  svg { background: #ffffff; color: #172033; font-family: Inter, Segoe UI, sans-serif; }
+  .title { font-size: 24px; font-weight: 600; fill: currentColor; }
+  .subtitle, .tick { font-size: 13px; fill: #526174; }
+  .panel-title, .axis-title { font-size: 15px; font-weight: 600; fill: currentColor; }
+  .frame { fill: none; stroke: #9aa7b7; stroke-width: 1; }
+  .grid { stroke: #d8dee8; stroke-width: 1; }
+  .series { fill: none; stroke: #2563eb; stroke-width: 3; stroke-linejoin: round; stroke-linecap: round; }
+  .point { fill: #2563eb; }
+</style>
+<text x="92" y="42" class="title">DeepSeek V4.1 Flash · 6 nodes</text>
+<text x="92" y="68" class="subtitle">100K context tokens · 80% resident KV · active agents swept independently to capacity</text>
+<text x="92" y="83" class="panel-title">Aggregate decode throughput</text>
+<rect x="92" y="105" width="1076" height="190" class="frame"/>
+<line x1="92" y1="295.0" x2="1168" y2="295.0" class="grid"/>
+<text x="80" y="299.0" text-anchor="end" class="tick">0.0</text>
+<line x1="92" y1="247.5" x2="1168" y2="247.5" class="grid"/>
+<text x="80" y="251.5" text-anchor="end" class="tick">472.7</text>
+<line x1="92" y1="200.0" x2="1168" y2="200.0" class="grid"/>
+<text x="80" y="204.0" text-anchor="end" class="tick">945.3</text>
+<line x1="92" y1="152.5" x2="1168" y2="152.5" class="grid"/>
+<text x="80" y="156.5" text-anchor="end" class="tick">1418.0</text>
+<line x1="92" y1="105.0" x2="1168" y2="105.0" class="grid"/>
+<text x="80" y="109.0" text-anchor="end" class="tick">1890.6</text>
+<polyline points="92.0,288.0 206.1,281.2 272.9,274.5 320.3,269.8 357.0,264.2 387.1,260.4 412.5,257.5 434.4,257.9 471.2,251.3 538.0,242.2 601.0,235.2 662.7,225.6 722.5,215.8 786.9,202.2 850.4,188.0 913.8,165.9 976.4,150.4 1039.9,146.3 1103.1,128.6 1166.3,124.0 1168.0,119.1" class="series"/>
+<circle cx="92.0" cy="288.0" r="3.5" class="point"><title>1 agents: 70.037 tokens / second</title></circle>
+<circle cx="206.1" cy="281.2" r="3.5" class="point"><title>2 agents: 137.613 tokens / second</title></circle>
+<circle cx="272.9" cy="274.5" r="3.5" class="point"><title>3 agents: 203.664 tokens / second</title></circle>
+<circle cx="320.3" cy="269.8" r="3.5" class="point"><title>4 agents: 251.157 tokens / second</title></circle>
+<circle cx="357.0" cy="264.2" r="3.5" class="point"><title>5 agents: 306.775 tokens / second</title></circle>
+<circle cx="387.1" cy="260.4" r="3.5" class="point"><title>6 agents: 344.378 tokens / second</title></circle>
+<circle cx="412.5" cy="257.5" r="3.5" class="point"><title>7 agents: 372.741 tokens / second</title></circle>
+<circle cx="434.4" cy="257.9" r="3.5" class="point"><title>8 agents: 369.431 tokens / second</title></circle>
+<circle cx="471.2" cy="251.3" r="3.5" class="point"><title>10 agents: 435.235 tokens / second</title></circle>
+<circle cx="538.0" cy="242.2" r="3.5" class="point"><title>15 agents: 525.524 tokens / second</title></circle>
+<circle cx="601.0" cy="235.2" r="3.5" class="point"><title>22 agents: 595.407 tokens / second</title></circle>
+<circle cx="662.7" cy="225.6" r="3.5" class="point"><title>32 agents: 690.614 tokens / second</title></circle>
+<circle cx="722.5" cy="215.8" r="3.5" class="point"><title>46 agents: 788.150 tokens / second</title></circle>
+<circle cx="786.9" cy="202.2" r="3.5" class="point"><title>68 agents: 923.374 tokens / second</title></circle>
+<circle cx="850.4" cy="188.0" r="3.5" class="point"><title>100 agents: 1064.535 tokens / second</title></circle>
+<circle cx="913.8" cy="165.9" r="3.5" class="point"><title>147 agents: 1284.159 tokens / second</title></circle>
+<circle cx="976.4" cy="150.4" r="3.5" class="point"><title>215 agents: 1438.490 tokens / second</title></circle>
+<circle cx="1039.9" cy="146.3" r="3.5" class="point"><title>316 agents: 1479.261 tokens / second</title></circle>
+<circle cx="1103.1" cy="128.6" r="3.5" class="point"><title>464 agents: 1655.917 tokens / second</title></circle>
+<circle cx="1166.3" cy="124.0" r="3.5" class="point"><title>681 agents: 1701.668 tokens / second</title></circle>
+<circle cx="1168.0" cy="119.1" r="3.5" class="point"><title>688 agents: 1750.565 tokens / second</title></circle>
+<text x="24" y="200.0" transform="rotate(-90 24 200.0)" text-anchor="middle" class="axis-title">tokens / second</text>
+<text x="92" y="343" class="panel-title">Mean single-token latency</text>
+<rect x="92" y="365" width="1076" height="190" class="frame"/>
+<line x1="92" y1="555.0" x2="1168" y2="555.0" class="grid"/>
+<text x="80" y="559.0" text-anchor="end" class="tick">0.0</text>
+<line x1="92" y1="507.5" x2="1168" y2="507.5" class="grid"/>
+<text x="80" y="511.5" text-anchor="end" class="tick">104.5</text>
+<line x1="92" y1="460.0" x2="1168" y2="460.0" class="grid"/>
+<text x="80" y="464.0" text-anchor="end" class="tick">209.1</text>
+<line x1="92" y1="412.5" x2="1168" y2="412.5" class="grid"/>
+<text x="80" y="416.5" text-anchor="end" class="tick">313.6</text>
+<line x1="92" y1="365.0" x2="1168" y2="365.0" class="grid"/>
+<text x="80" y="369.0" text-anchor="end" class="tick">418.2</text>
+<polyline points="92.0,548.5 206.1,548.4 272.9,548.3 320.3,547.8 357.0,547.6 387.1,547.2 412.5,546.5 434.4,545.5 471.2,544.7 538.0,542.2 601.0,538.9 662.7,534.3 722.5,529.6 786.9,522.5 850.4,513.5 913.8,503.0 976.4,487.3 1039.9,465.3 1103.1,432.8 1166.3,379.1 1168.0,380.5" class="series"/>
+<circle cx="92.0" cy="548.5" r="3.5" class="point"><title>1 agents: 14.278 milliseconds</title></circle>
+<circle cx="206.1" cy="548.4" r="3.5" class="point"><title>2 agents: 14.550 milliseconds</title></circle>
+<circle cx="272.9" cy="548.3" r="3.5" class="point"><title>3 agents: 14.684 milliseconds</title></circle>
+<circle cx="320.3" cy="547.8" r="3.5" class="point"><title>4 agents: 15.776 milliseconds</title></circle>
+<circle cx="357.0" cy="547.6" r="3.5" class="point"><title>5 agents: 16.249 milliseconds</title></circle>
+<circle cx="387.1" cy="547.2" r="3.5" class="point"><title>6 agents: 17.227 milliseconds</title></circle>
+<circle cx="412.5" cy="546.5" r="3.5" class="point"><title>7 agents: 18.761 milliseconds</title></circle>
+<circle cx="434.4" cy="545.5" r="3.5" class="point"><title>8 agents: 20.973 milliseconds</title></circle>
+<circle cx="471.2" cy="544.7" r="3.5" class="point"><title>10 agents: 22.673 milliseconds</title></circle>
+<circle cx="538.0" cy="542.2" r="3.5" class="point"><title>15 agents: 28.163 milliseconds</title></circle>
+<circle cx="601.0" cy="538.9" r="3.5" class="point"><title>22 agents: 35.500 milliseconds</title></circle>
+<circle cx="662.7" cy="534.3" r="3.5" class="point"><title>32 agents: 45.569 milliseconds</title></circle>
+<circle cx="722.5" cy="529.6" r="3.5" class="point"><title>46 agents: 55.975 milliseconds</title></circle>
+<circle cx="786.9" cy="522.5" r="3.5" class="point"><title>68 agents: 71.567 milliseconds</title></circle>
+<circle cx="850.4" cy="513.5" r="3.5" class="point"><title>100 agents: 91.331 milliseconds</title></circle>
+<circle cx="913.8" cy="503.0" r="3.5" class="point"><title>147 agents: 114.461 milliseconds</title></circle>
+<circle cx="976.4" cy="487.3" r="3.5" class="point"><title>215 agents: 149.107 milliseconds</title></circle>
+<circle cx="1039.9" cy="465.3" r="3.5" class="point"><title>316 agents: 197.469 milliseconds</title></circle>
+<circle cx="1103.1" cy="432.8" r="3.5" class="point"><title>464 agents: 268.896 milliseconds</title></circle>
+<circle cx="1166.3" cy="379.1" r="3.5" class="point"><title>681 agents: 387.210 milliseconds</title></circle>
+<circle cx="1168.0" cy="380.5" r="3.5" class="point"><title>688 agents: 384.180 milliseconds</title></circle>
+<text x="24" y="460.0" transform="rotate(-90 24 460.0)" text-anchor="middle" class="axis-title">milliseconds</text>
+<text x="92" y="603" class="panel-title">Mean executed expert batch</text>
+<rect x="92" y="625" width="1076" height="190" class="frame"/>
+<line x1="92" y1="815.0" x2="1168" y2="815.0" class="grid"/>
+<text x="80" y="819.0" text-anchor="end" class="tick">0.0</text>
+<line x1="92" y1="767.5" x2="1168" y2="767.5" class="grid"/>
+<text x="80" y="771.5" text-anchor="end" class="tick">2.7</text>
+<line x1="92" y1="720.0" x2="1168" y2="720.0" class="grid"/>
+<text x="80" y="724.0" text-anchor="end" class="tick">5.5</text>
+<line x1="92" y1="672.5" x2="1168" y2="672.5" class="grid"/>
+<text x="80" y="676.5" text-anchor="end" class="tick">8.2</text>
+<line x1="92" y1="625.0" x2="1168" y2="625.0" class="grid"/>
+<text x="80" y="629.0" text-anchor="end" class="tick">10.9</text>
+<polyline points="92.0,797.6 206.1,797.5 272.9,797.5 320.3,797.4 357.0,797.4 387.1,797.3 412.5,797.2 434.4,797.1 471.2,796.8 538.0,796.5 601.0,794.9 662.7,793.4 722.5,790.6 786.9,785.3 850.4,777.0 913.8,762.8 976.4,744.9 1039.9,715.8 1103.1,675.5 1166.3,655.5 1168.0,639.1" class="series"/>
+<circle cx="92.0" cy="797.6" r="3.5" class="point"><title>1 agents: 1.000 expert branches / kernel</title></circle>
+<circle cx="206.1" cy="797.5" r="3.5" class="point"><title>2 agents: 1.003 expert branches / kernel</title></circle>
+<circle cx="272.9" cy="797.5" r="3.5" class="point"><title>3 agents: 1.003 expert branches / kernel</title></circle>
+<circle cx="320.3" cy="797.4" r="3.5" class="point"><title>4 agents: 1.009 expert branches / kernel</title></circle>
+<circle cx="357.0" cy="797.4" r="3.5" class="point"><title>5 agents: 1.011 expert branches / kernel</title></circle>
+<circle cx="387.1" cy="797.3" r="3.5" class="point"><title>6 agents: 1.014 expert branches / kernel</title></circle>
+<circle cx="412.5" cy="797.2" r="3.5" class="point"><title>7 agents: 1.021 expert branches / kernel</title></circle>
+<circle cx="434.4" cy="797.1" r="3.5" class="point"><title>8 agents: 1.030 expert branches / kernel</title></circle>
+<circle cx="471.2" cy="796.8" r="3.5" class="point"><title>10 agents: 1.047 expert branches / kernel</title></circle>
+<circle cx="538.0" cy="796.5" r="3.5" class="point"><title>15 agents: 1.065 expert branches / kernel</title></circle>
+<circle cx="601.0" cy="794.9" r="3.5" class="point"><title>22 agents: 1.152 expert branches / kernel</title></circle>
+<circle cx="662.7" cy="793.4" r="3.5" class="point"><title>32 agents: 1.238 expert branches / kernel</title></circle>
+<circle cx="722.5" cy="790.6" r="3.5" class="point"><title>46 agents: 1.401 expert branches / kernel</title></circle>
+<circle cx="786.9" cy="785.3" r="3.5" class="point"><title>68 agents: 1.706 expert branches / kernel</title></circle>
+<circle cx="850.4" cy="777.0" r="3.5" class="point"><title>100 agents: 2.185 expert branches / kernel</title></circle>
+<circle cx="913.8" cy="762.8" r="3.5" class="point"><title>147 agents: 2.998 expert branches / kernel</title></circle>
+<circle cx="976.4" cy="744.9" r="3.5" class="point"><title>215 agents: 4.027 expert branches / kernel</title></circle>
+<circle cx="1039.9" cy="715.8" r="3.5" class="point"><title>316 agents: 5.699 expert branches / kernel</title></circle>
+<circle cx="1103.1" cy="675.5" r="3.5" class="point"><title>464 agents: 8.014 expert branches / kernel</title></circle>
+<circle cx="1166.3" cy="655.5" r="3.5" class="point"><title>681 agents: 9.159 expert branches / kernel</title></circle>
+<circle cx="1168.0" cy="639.1" r="3.5" class="point"><title>688 agents: 10.103 expert branches / kernel</title></circle>
+<text x="24" y="720.0" transform="rotate(-90 24 720.0)" text-anchor="middle" class="axis-title">expert branches / kernel</text>
+<text x="92.0" y="844" text-anchor="middle" class="tick">1</text><text x="320.3" y="844" text-anchor="middle" class="tick">4</text><text x="412.5" y="844" text-anchor="middle" class="tick">7</text><text x="538.0" y="844" text-anchor="middle" class="tick">15</text><text x="722.5" y="844" text-anchor="middle" class="tick">46</text><text x="913.8" y="844" text-anchor="middle" class="tick">147</text><text x="1103.1" y="844" text-anchor="middle" class="tick">464</text><text x="1168.0" y="844" text-anchor="middle" class="tick">688</text>
+<text x="630.0" y="878" text-anchor="middle" class="axis-title">Continuously active agents (log scale)</text>
+</svg>

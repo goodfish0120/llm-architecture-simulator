@@ -1,0 +1,22 @@
+model,node_count,fits_in_memory,checkpoint_gb,aggregate_usable_memory_gb,memory_capacity_agent_limit_at_assumed_context,saturation_agent_count_at_95_percent_of_peak,observed_best_tokens_per_second,stopping_reason,dominant_busy_resource
+Kimi K3,1,False,1560.936091448,460.8,,,,weights_do_not_fit,
+Kimi K3,2,False,1560.936091448,921.6,,,,weights_do_not_fit,
+Kimi K3,3,False,1560.936091448,1382.4,,,,weights_do_not_fit,
+Kimi K3,4,True,1560.936091448,1843.2,127,127,355.863539946542,memory_capacity_before_throughput_plateau,gpu_compute
+Kimi K3,5,True,1560.936091448,2304.0,335,335,783.3283097663925,memory_capacity_before_throughput_plateau,gpu_compute
+Kimi K3,6,True,1560.936091448,2764.8,544,544,1156.023127920027,memory_capacity_before_throughput_plateau,gpu_compute
+Kimi K3,7,True,1560.936091448,3225.6,752,681,1488.6109678717396,throughput_plateau,gpu_compute
+DeepSeek V4.1 Flash,1,False,510.296708312,460.8,,,,weights_do_not_fit,
+DeepSeek V4.1 Flash,2,True,510.296708312,921.6,125,125,432.81711962914284,memory_capacity_before_throughput_plateau,gpu_compute
+DeepSeek V4.1 Flash,3,True,510.296708312,1382.4,266,215,709.1024154772364,throughput_plateau,gpu_compute
+DeepSeek V4.1 Flash,4,True,510.296708312,1843.2,406,316,1000.6568164235292,throughput_plateau,gpu_compute
+DeepSeek V4.1 Flash,5,True,510.296708312,2304.0,547,464,1449.7675094140802,throughput_plateau,gpu_compute
+DeepSeek V4.1 Flash,6,True,510.296708312,2764.8,688,681,1750.5646650746996,throughput_plateau,gpu_compute
+DeepSeek V4.1 Flash,7,True,510.296708312,3225.6,828,681,2149.9947541963065,throughput_plateau,gpu_compute
+Qwen3.8 Flash Next,1,True,360.000192888,460.8,102,100,427.8334709815538,throughput_plateau,gpu_compute
+Qwen3.8 Flash Next,2,True,360.000192888,921.6,571,571,1671.3453036430064,memory_capacity_before_throughput_plateau,gpu_compute
+Qwen3.8 Flash Next,3,True,360.000192888,1382.4,1040,1000,2810.291724949585,throughput_plateau,gpu_compute
+Qwen3.8 Flash Next,4,True,360.000192888,1843.2,1508,1468,3944.933985707995,throughput_plateau,gpu_compute
+Qwen3.8 Flash Next,5,True,360.000192888,2304.0,1977,1468,5098.564652382035,throughput_plateau,gpu_compute
+Qwen3.8 Flash Next,6,True,360.000192888,2764.8,2446,2154,6189.17145942963,throughput_plateau,gpu_compute
+Qwen3.8 Flash Next,7,True,360.000192888,3225.6,2915,2154,7254.686623384841,throughput_plateau,gpu_compute

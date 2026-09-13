@@ -145,6 +145,7 @@ class StochasticMoeArchitectureSimulator:
     ) -> None:
         token_id = self.next_globally_unique_token_id
         self.next_globally_unique_token_id += 1
+        self.observer.record_token_started(token_id, ready_time_ns)
         self.event_engine.schedule_event(
             scheduled_time_ns=ready_time_ns,
             event_type="shared_layer_work_arrived",
@@ -716,7 +717,10 @@ class StochasticMoeArchitectureSimulator:
         for unit in event.work_particle.logical_work_units:
             if unit.node_that_owns_sequence_state is None:
                 raise ValueError("completed token requires a sequence owner")
-            self.observer.record_completed_token(event.scheduled_time_ns)
+            self.observer.record_completed_token(
+                unit.globally_unique_token_id,
+                event.scheduled_time_ns,
+            )
             self._schedule_new_token_for_agent(
                 workload_agent_id=unit.workload_agent_id,
                 node_that_owns_sequence_state=unit.node_that_owns_sequence_state,

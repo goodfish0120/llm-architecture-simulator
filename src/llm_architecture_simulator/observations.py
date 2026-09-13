@@ -6,6 +6,8 @@ from statistics import mean
 class SimulationObserver:
     def __init__(self) -> None:
         self.completed_token_times_ns: list[float] = []
+        self.completed_token_latency_records: list[tuple[float, float]] = []
+        self.token_start_time_ns_by_token_id: dict[int, float] = {}
         self.expert_batch_records: list[tuple[float, int, int]] = []
         self.expert_route_records: list[tuple[float, bool, int]] = []
 
@@ -13,8 +15,15 @@ class SimulationObserver:
     def executed_expert_batch_sizes(self) -> list[int]:
         return [batch_size for _, batch_size, _ in self.expert_batch_records]
 
-    def record_completed_token(self, completion_time_ns: float) -> None:
+    def record_token_started(self, token_id: int, start_time_ns: float) -> None:
+        self.token_start_time_ns_by_token_id[token_id] = start_time_ns
+
+    def record_completed_token(self, token_id: int, completion_time_ns: float) -> None:
         self.completed_token_times_ns.append(completion_time_ns)
+        start_time_ns = self.token_start_time_ns_by_token_id.pop(token_id)
+        self.completed_token_latency_records.append(
+            (completion_time_ns, completion_time_ns - start_time_ns)
+        )
 
     def record_expert_batch_execution(
         self,
