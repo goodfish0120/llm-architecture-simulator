@@ -309,6 +309,7 @@ def write_results(
         raise RuntimeError("counterfactual route-prefix identity check failed")
     metadata = {
         "purpose": "single-scenario simulator counterfactual bottleneck sweep",
+        "counterfactual_scope": "simulator_internal",
         "scenario": {
             "profile": PROFILE_NAME,
             "node_count": NODE_COUNT,
@@ -335,10 +336,9 @@ def write_results(
             "global_scan_best_throughput_tok_s_not_this_baseline": 1488.6109678717396,
         },
         "limitations": [
-            "Synthetic mechanism simulation, not a hardware benchmark.",
+            "Counterfactual results are simulator-internal sensitivity measurements under a shared deterministic logical workload stream; hardware parameters remain synthetic and uncalibrated, and observed deltas are not real-hardware causal estimates.",
             "A busy fraction is an occupancy signal, not a causal bottleneck finding.",
-            "This output does not validate simulator accuracy against real hardware.",
-            "Route-workload comparability across hardware variants is unverified and exploratory until a design verdict and auditable check establish an identical route trace; hardware changes can alter event ordering and the seeded router's sampled workload.",
+            "A negative throughput delta under lower modeled latency may reflect scheduler or batching interactions and is not a hardware causal claim unless an intermediate mechanism is observable and reproducible.",
         ],
     }
     (output_directory / "mac_studio_m5_ultra_counterfactual_metadata.json").write_text(
