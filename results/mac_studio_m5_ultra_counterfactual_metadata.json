@@ -1,0 +1,77 @@
+{
+  "purpose": "single-scenario simulator counterfactual bottleneck sweep",
+  "counterfactual_scope": "simulator_internal",
+  "scenario": {
+    "profile": "Kimi K3",
+    "node_count": 7,
+    "agent_count": 681,
+    "context_tokens": 100000,
+    "kv_resident_fraction": 0.8,
+    "seed": 7,
+    "tokens_per_agent": 10,
+    "warmup": "exclude the first completed token per agent",
+    "stop_rule": "target completed tokens or 10 simulated seconds"
+  },
+  "variants": [
+    {
+      "name": "baseline",
+      "compute_tflops_per_node": 100.0,
+      "memory_gbps_per_node": 1200.0,
+      "network_gbps_each_direction": 7.5,
+      "network_latency_ns": 50000.0
+    },
+    {
+      "name": "control_x1",
+      "compute_tflops_per_node": 100.0,
+      "memory_gbps_per_node": 1200.0,
+      "network_gbps_each_direction": 7.5,
+      "network_latency_ns": 50000.0
+    },
+    {
+      "name": "compute_x2",
+      "compute_tflops_per_node": 200.0,
+      "memory_gbps_per_node": 1200.0,
+      "network_gbps_each_direction": 7.5,
+      "network_latency_ns": 50000.0
+    },
+    {
+      "name": "hbm_bandwidth_x2",
+      "compute_tflops_per_node": 100.0,
+      "memory_gbps_per_node": 2400.0,
+      "network_gbps_each_direction": 7.5,
+      "network_latency_ns": 50000.0
+    },
+    {
+      "name": "network_bandwidth_x2",
+      "compute_tflops_per_node": 100.0,
+      "memory_gbps_per_node": 1200.0,
+      "network_gbps_each_direction": 15.0,
+      "network_latency_ns": 50000.0
+    },
+    {
+      "name": "network_latency_div2",
+      "compute_tflops_per_node": 100.0,
+      "memory_gbps_per_node": 1200.0,
+      "network_gbps_each_direction": 7.5,
+      "network_latency_ns": 25000.0
+    }
+  ],
+  "negative_control": "control_x1 is identical to baseline and should reproduce it exactly.",
+  "implementation_commit": "efbc3debbac9303132bc970599fb7d34729723cc",
+  "workload_control": {
+    "routing_randomness": "keyed_logical_work",
+    "logical_identity": "seed, workload_agent_id, workload_token_ordinal, model_layer_index",
+    "route_prefix_digest": "1e1aa4e68070a7ef98f7155b5e6de0f307981c18794bfcce1f842bb56b0e0a38",
+    "route_identity_check": "passed"
+  },
+  "historical_reference_only": {
+    "681_agent_scan_throughput_tok_s": 1430.9811369323036,
+    "681_agent_scan_p95_ms": 539.6001001859472,
+    "global_scan_best_throughput_tok_s_not_this_baseline": 1488.6109678717396
+  },
+  "limitations": [
+    "Counterfactual results are simulator-internal sensitivity measurements under a shared deterministic logical workload stream; hardware parameters remain synthetic and uncalibrated, and observed deltas are not real-hardware causal estimates.",
+    "A busy fraction is an occupancy signal, not a causal bottleneck finding.",
+    "A negative throughput delta under lower modeled latency may reflect scheduler or batching interactions and is not a hardware causal claim unless an intermediate mechanism is observable and reproducible."
+  ]
+}
