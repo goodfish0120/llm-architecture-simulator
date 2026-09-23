@@ -57,7 +57,7 @@
     }
   ],
   "negative_control": "control_x1 is identical to baseline and should reproduce it exactly.",
-  "implementation_commit": "a14e40490e0ba89a0d6d94a08542e98921440870",
+  "implementation_commit": "54806c699fa7b7f2635e5cea2a349d4cff3eb2f9",
   "workload_control": {
     "routing_randomness": "keyed_logical_work",
     "logical_identity": "seed, workload_agent_id, workload_token_ordinal, model_layer_index",
