@@ -386,13 +386,16 @@ def write_results(
         writer = csv.DictWriter(output, fieldnames=asdict(results[0]).keys())
         writer.writeheader()
         writer.writerows(asdict(result) for result in results)
-    profile = kimi_k3_profile()
-    route_digests = {
-        variant.name: calculate_route_prefix_digest(profile, variant, routing_randomness)
-        for variant in VARIANTS
-    }
-    if len(set(route_digests.values())) != 1:
-        raise RuntimeError("counterfactual route-prefix identity check failed")
+    route_digests: dict[str, str] = {}
+    if routing_randomness == KEYED_ROUTING:
+        profile = kimi_k3_profile()
+        route_digests = {
+            variant.name: calculate_route_prefix_digest(profile, variant, routing_randomness)
+            for variant in VARIANTS
+        }
+        if len(set(route_digests.values())) != 1:
+            raise RuntimeError("counterfactual route-prefix identity check failed")
+    exact_per_agent_quota = actual_route_trace_digest is not None
     metadata = {
         "purpose": "single-scenario simulator counterfactual bottleneck sweep",
         "counterfactual_scope": "simulator_internal",
@@ -405,7 +408,11 @@ def write_results(
             "seed": SEED,
             "tokens_per_agent": results[0].tokens_per_agent,
             "warmup": "exclude the first completed token per agent",
-            "stop_rule": "every agent completes exactly tokens_per_agent, or 10 simulated seconds",
+            "stop_rule": (
+                "every agent completes exactly tokens_per_agent, or 10 simulated seconds"
+                if exact_per_agent_quota
+                else "aggregate completed-token target or 10 simulated seconds"
+            ),
         },
         "variants": [asdict(variant) for variant in VARIANTS],
         "negative_control": "control_x1 is identical to baseline and should reproduce it exactly.",
@@ -413,8 +420,12 @@ def write_results(
         "workload_control": {
             "routing_randomness": routing_randomness,
             "logical_identity": "seed, workload_agent_id, workload_token_ordinal, model_layer_index",
-            "configured_route_prefix_digest": next(iter(route_digests.values())),
-            "configured_route_prefix_check": "passed",
+            "configured_route_prefix_digest": (
+                next(iter(route_digests.values())) if route_digests else None
+            ),
+            "configured_route_prefix_check": (
+                "passed" if route_digests else "not_applicable"
+            ),
             "actual_consumed_route_trace_digest": actual_route_trace_digest,
             "actual_consumed_route_identity_count": actual_route_identity_count,
             "actual_consumed_route_identity_check": (

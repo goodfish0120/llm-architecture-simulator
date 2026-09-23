@@ -66,7 +66,7 @@ def test_ten_token_snapshot_reproduces_baseline_control_and_writes_schema(tmp_pa
     assert baseline.p95_token_latency_ms == control.p95_token_latency_ms == 539.6001001859472
     assert control.delta_throughput_vs_baseline == 0.0
     assert control.delta_p95_vs_baseline == 0.0
-    write_results(tmp_path, results, routing_randomness=KEYED_ROUTING)
+    write_results(tmp_path, results, routing_randomness="legacy_stream")
     with (tmp_path / "mac_studio_m5_ultra_counterfactual.csv").open(newline="", encoding="utf-8") as output:
         rows = list(csv.DictReader(output))
     assert len(rows) == 6
@@ -78,8 +78,9 @@ def test_ten_token_snapshot_reproduces_baseline_control_and_writes_schema(tmp_pa
         )
     )
     assert metadata["implementation_commit"] == "test-commit"
-    assert metadata["workload_control"]["routing_randomness"] == KEYED_ROUTING
-    assert metadata["workload_control"]["route_identity_check"] == "passed"
+    assert metadata["workload_control"]["routing_randomness"] == "legacy_stream"
+    assert metadata["workload_control"]["configured_route_prefix_check"] == "not_applicable"
+    assert metadata["workload_control"]["actual_consumed_route_identity_check"] == "not_run"
     assert metadata["scenario"] == {
         "profile": PROFILE_NAME,
         "node_count": NODE_COUNT,
@@ -89,7 +90,7 @@ def test_ten_token_snapshot_reproduces_baseline_control_and_writes_schema(tmp_pa
         "seed": SEED,
         "tokens_per_agent": 10,
         "warmup": "exclude the first completed token per agent",
-        "stop_rule": "every agent completes exactly tokens_per_agent, or 10 simulated seconds",
+        "stop_rule": "aggregate completed-token target or 10 simulated seconds",
     }
 
 
@@ -102,7 +103,7 @@ def test_keyed_route_prefix_is_identical_across_hardware_variants():
     assert len(digests) == 1
 
 
-def test_keyed_ten_token_controlled_snapshot_has_full_consumed_route_identity():
+def test_keyed_ten_token_controlled_snapshot_has_full_consumed_route_identity(tmp_path):
     outcome = run_controlled_sweep(tokens_per_agent=10, commit="test-commit")
     baseline, control = outcome.results[:2]
     assert len(outcome.results) == 6
@@ -112,6 +113,20 @@ def test_keyed_ten_token_controlled_snapshot_has_full_consumed_route_identity():
     assert baseline.p95_token_latency_ms == control.p95_token_latency_ms == 611.0815117638007
     assert outcome.actual_route_identity_count == AGENT_COUNT * 10
     assert len(outcome.actual_route_trace_digest) == 64
+    write_results(
+        tmp_path,
+        outcome.results,
+        routing_randomness=KEYED_ROUTING,
+        actual_route_trace_digest=outcome.actual_route_trace_digest,
+        actual_route_identity_count=outcome.actual_route_identity_count,
+    )
+    metadata = json.loads(
+        (tmp_path / "mac_studio_m5_ultra_counterfactual_metadata.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert metadata["workload_control"]["configured_route_prefix_check"] == "passed"
+    assert metadata["workload_control"]["actual_consumed_route_identity_check"] == "passed"
 
 
 def test_sweep_rejects_nonpositive_token_target():
