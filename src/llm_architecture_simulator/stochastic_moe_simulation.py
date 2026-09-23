@@ -29,6 +29,9 @@ class StochasticMoeArchitectureSimulator:
         self.observer = SimulationObserver()
         self.dependency_join_tracker = DependencyJoinTracker()
         self.next_globally_unique_token_id = 0
+        self.next_workload_token_ordinal_by_agent = [
+            0 for _ in range(configuration.continuously_active_agent_count)
+        ]
 
         self.compute_and_memory_node_by_id = create_compute_and_memory_nodes(configuration)
         self.network_topology = create_network_topology(configuration)
@@ -145,15 +148,18 @@ class StochasticMoeArchitectureSimulator:
     ) -> None:
         token_id = self.next_globally_unique_token_id
         self.next_globally_unique_token_id += 1
+        token_ordinal = self.next_workload_token_ordinal_by_agent[workload_agent_id]
+        self.next_workload_token_ordinal_by_agent[workload_agent_id] += 1
         self.observer.record_token_started(token_id, ready_time_ns)
         self.event_engine.schedule_event(
             scheduled_time_ns=ready_time_ns,
             event_type="shared_layer_work_arrived",
             work_particle=WorkParticle(
                 logical_work_units=(
-                    LogicalWorkUnit(
-                        globally_unique_token_id=token_id,
-                        workload_agent_id=workload_agent_id,
+                LogicalWorkUnit(
+                    globally_unique_token_id=token_id,
+                    workload_agent_id=workload_agent_id,
+                    workload_token_ordinal=token_ordinal,
                         node_that_owns_sequence_state=node_that_owns_sequence_state,
                     ),
                 ),
@@ -346,7 +352,16 @@ class StochasticMoeArchitectureSimulator:
             if unit.node_that_owns_sequence_state != particle.current_node_id:
                 raise ValueError("expert routing must start where sequence state is owned")
 
-            selected_expert_indexes = expert_router.sample_distinct_expert_indexes_for_one_token()
+            selected_expert_indexes = (
+                expert_router.sample_distinct_expert_indexes_for_logical_step(
+                    workload_agent_id=unit.workload_agent_id,
+                    workload_token_ordinal=unit.workload_token_ordinal,
+                    model_layer_index=layer_index,
+                    base_random_seed=self.configuration.random_seed,
+                )
+                if self.configuration.routing_randomness == "keyed_logical_work"
+                else expert_router.sample_distinct_expert_indexes_for_one_token()
+            )
             selected_expert_node_ids = tuple(
                 expert_node_ids[expert_index] for expert_index in selected_expert_indexes
             )
@@ -371,6 +386,7 @@ class StochasticMoeArchitectureSimulator:
                     LogicalWorkUnit(
                         globally_unique_token_id=unit.globally_unique_token_id,
                         workload_agent_id=unit.workload_agent_id,
+                        workload_token_ordinal=unit.workload_token_ordinal,
                         dependency_join_id=dependency_join_id,
                         branch_index_inside_dependency_join=branch_index,
                         node_that_owns_sequence_state=unit.node_that_owns_sequence_state,

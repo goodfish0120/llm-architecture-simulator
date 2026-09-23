@@ -14,6 +14,7 @@ class ParticleBatchingRule(str, Enum):
 class LogicalWorkUnit:
     globally_unique_token_id: int
     workload_agent_id: int
+    workload_token_ordinal: int = 0
     dependency_join_id: str | None = None
     branch_index_inside_dependency_join: int | None = None
     node_that_owns_sequence_state: int | None = None
@@ -170,6 +171,7 @@ class DependencyJoinTracker:
                 LogicalWorkUnit(
                     globally_unique_token_id=unit.globally_unique_token_id,
                     workload_agent_id=unit.workload_agent_id,
+                    workload_token_ordinal=unit.workload_token_ordinal,
                     node_that_owns_sequence_state=unit.node_that_owns_sequence_state,
                 )
             )

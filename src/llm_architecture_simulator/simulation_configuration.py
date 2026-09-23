@@ -45,6 +45,7 @@ class StochasticMoeSimulationConfiguration:
         default_factory=create_default_model_layers
     )
     random_seed: int = 7
+    routing_randomness: str = "legacy_stream"
 
     shared_layer_batching_window_ns: float = 100_000.0
     maximum_shared_layer_batch_size: int = 128
@@ -138,6 +139,10 @@ class StochasticMoeSimulationConfiguration:
             raise ValueError(
                 "expert_result_rendezvous_policy must be sequence_owner "
                 "or largest_local_expert_group"
+            )
+        if self.routing_randomness not in {"legacy_stream", "keyed_logical_work"}:
+            raise ValueError(
+                "routing_randomness must be legacy_stream or keyed_logical_work"
             )
 
         for layer_index, layer_configuration in enumerate(self.model_layers):
