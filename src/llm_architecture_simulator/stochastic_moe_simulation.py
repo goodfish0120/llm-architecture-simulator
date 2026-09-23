@@ -362,6 +362,13 @@ class StochasticMoeArchitectureSimulator:
                 if self.configuration.routing_randomness == "keyed_logical_work"
                 else expert_router.sample_distinct_expert_indexes_for_one_token()
             )
+            if self.configuration.routing_randomness == "keyed_logical_work":
+                self.observer.record_selected_expert_indexes(
+                    workload_agent_id=unit.workload_agent_id,
+                    workload_token_ordinal=unit.workload_token_ordinal,
+                    model_layer_index=layer_index,
+                    selected_expert_indexes=selected_expert_indexes,
+                )
             selected_expert_node_ids = tuple(
                 expert_node_ids[expert_index] for expert_index in selected_expert_indexes
             )
@@ -737,6 +744,12 @@ class StochasticMoeArchitectureSimulator:
                 unit.globally_unique_token_id,
                 event.scheduled_time_ns,
             )
+            if (
+                self.configuration.maximum_completed_tokens_per_agent is not None
+                and unit.workload_token_ordinal + 1
+                >= self.configuration.maximum_completed_tokens_per_agent
+            ):
+                continue
             self._schedule_new_token_for_agent(
                 workload_agent_id=unit.workload_agent_id,
                 node_that_owns_sequence_state=unit.node_that_owns_sequence_state,

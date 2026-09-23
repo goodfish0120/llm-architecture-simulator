@@ -15,6 +15,7 @@ from run_mac_studio_m5_ultra_counterfactual import (
     average_idle_reasons,
     calculate_route_prefix_digest,
     kimi_k3_profile,
+    run_controlled_sweep,
     run_sweep,
     write_results,
 )
@@ -88,7 +89,7 @@ def test_ten_token_snapshot_reproduces_baseline_control_and_writes_schema(tmp_pa
         "seed": SEED,
         "tokens_per_agent": 10,
         "warmup": "exclude the first completed token per agent",
-        "stop_rule": "target completed tokens or 10 simulated seconds",
+        "stop_rule": "every agent completes exactly tokens_per_agent, or 10 simulated seconds",
     }
 
 
@@ -99,6 +100,18 @@ def test_keyed_route_prefix_is_identical_across_hardware_variants():
         for variant in VARIANTS
     }
     assert len(digests) == 1
+
+
+def test_keyed_ten_token_controlled_snapshot_has_full_consumed_route_identity():
+    outcome = run_controlled_sweep(tokens_per_agent=10, commit="test-commit")
+    baseline, control = outcome.results[:2]
+    assert len(outcome.results) == 6
+    assert baseline.completed_token_count == control.completed_token_count == AGENT_COUNT * 10
+    assert baseline.run_status == control.run_status == "completed_target"
+    assert baseline.tokens_per_second == control.tokens_per_second == 1291.733030255351
+    assert baseline.p95_token_latency_ms == control.p95_token_latency_ms == 611.0815117638007
+    assert outcome.actual_route_identity_count == AGENT_COUNT * 10
+    assert len(outcome.actual_route_trace_digest) == 64
 
 
 def test_sweep_rejects_nonpositive_token_target():

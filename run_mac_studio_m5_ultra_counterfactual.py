@@ -87,6 +87,13 @@ class CounterfactualResult:
     run_status: str
 
 
+@dataclass(frozen=True)
+class ControlledSweepOutcome:
+    results: list[CounterfactualResult]
+    actual_route_trace_digest: str
+    actual_route_identity_count: int
+
+
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Sweep one Kimi K3 / 7-node / 681-agent simulator scenario"
@@ -149,6 +156,9 @@ def run_variant(
     tokens_per_agent: int,
     commit: str,
     routing_randomness: str = KEYED_ROUTING,
+    maximum_completed_tokens_per_agent: int | None = None,
+    route_trace_sink: dict[tuple[int, int, int], tuple[int, ...]] | None = None,
+    route_count_sink: dict[tuple[int, int, int], int] | None = None,
 ) -> CounterfactualResult:
     if tokens_per_agent < 1:
         raise ValueError("tokens_per_agent must be positive")
@@ -165,6 +175,7 @@ def run_variant(
         kv_resident_fraction=KV_RESIDENT_FRACTION,
     )
     configuration.routing_randomness = routing_randomness
+    configuration.maximum_completed_tokens_per_agent = maximum_completed_tokens_per_agent
     simulator = StochasticMoeArchitectureSimulator(configuration)
     target_completed_tokens = max(128, AGENT_COUNT * tokens_per_agent)
     while (
@@ -195,6 +206,10 @@ def run_variant(
     idle_reasons = simulator.calculate_compute_and_memory_idle_reasons_between_times(
         measurement_start_ns, measurement_end_ns
     )
+    if route_trace_sink is not None:
+        route_trace_sink.update(simulator.observer.selected_expert_indexes_by_logical_identity)
+    if route_count_sink is not None:
+        route_count_sink.update(simulator.observer.selected_expert_route_count_by_logical_identity)
     return CounterfactualResult(
         source_commit=commit,
         profile=profile.name,
@@ -225,6 +240,75 @@ def run_variant(
             if len(completion_times) >= target_completed_tokens
             else "simulated_time_limit_reached"
         ),
+    )
+
+
+def digest_actual_route_trace(
+    route_trace: dict[tuple[int, int, int], tuple[int, ...]]
+) -> str:
+    digest = hashlib.sha256()
+    for identity, route in sorted(route_trace.items()):
+        digest.update(f"{identity}:{route}\n".encode())
+    return digest.hexdigest()
+
+
+def run_controlled_sweep(
+    tokens_per_agent: int, commit: str | None = None
+) -> ControlledSweepOutcome:
+    """Run an exact per-agent keyed workload and verify its consumed route trace."""
+    profile = kimi_k3_profile()
+    resolved_commit = source_commit() if commit is None else commit
+    raw_results: list[CounterfactualResult] = []
+    traces: dict[str, dict[tuple[int, int, int], tuple[int, ...]]] = {}
+    route_counts: dict[str, dict[tuple[int, int, int], int]] = {}
+    for variant in VARIANTS:
+        trace: dict[tuple[int, int, int], tuple[int, ...]] = {}
+        counts: dict[tuple[int, int, int], int] = {}
+        result = run_variant(
+            profile,
+            variant,
+            tokens_per_agent,
+            resolved_commit,
+            routing_randomness=KEYED_ROUTING,
+            maximum_completed_tokens_per_agent=tokens_per_agent,
+            route_trace_sink=trace,
+            route_count_sink=counts,
+        )
+        expected_completed = AGENT_COUNT * tokens_per_agent
+        if result.completed_token_count != expected_completed or result.run_status != "completed_target":
+            raise RuntimeError("controlled sweep did not complete every agent token cap")
+        raw_results.append(result)
+        traces[variant.name] = trace
+        route_counts[variant.name] = counts
+    baseline_trace = traces["baseline"]
+    expected_identities = {
+        (agent_id, token_ordinal, layer_index)
+        for agent_id in range(AGENT_COUNT)
+        for token_ordinal in range(tokens_per_agent)
+        for layer_index in {identity[2] for identity in baseline_trace}
+    }
+    if (
+        set(baseline_trace) != expected_identities
+        or any(count != 1 for count in route_counts["baseline"].values())
+        or any(trace != baseline_trace for trace in traces.values())
+        or any(any(count != 1 for count in counts.values()) for counts in route_counts.values())
+    ):
+        raise RuntimeError("actual consumed keyed route trace differs across variants")
+    baseline = raw_results[0]
+    results = [
+        CounterfactualResult(
+            **{
+                **asdict(result),
+                "delta_throughput_vs_baseline": result.tokens_per_second - baseline.tokens_per_second,
+                "delta_p95_vs_baseline": result.p95_token_latency_ms - baseline.p95_token_latency_ms,
+            }
+        )
+        for result in raw_results
+    ]
+    return ControlledSweepOutcome(
+        results=results,
+        actual_route_trace_digest=digest_actual_route_trace(baseline_trace),
+        actual_route_identity_count=len(baseline_trace),
     )
 
 
@@ -293,6 +377,8 @@ def write_results(
     output_directory: Path,
     results: list[CounterfactualResult],
     routing_randomness: str = KEYED_ROUTING,
+    actual_route_trace_digest: str | None = None,
+    actual_route_identity_count: int | None = None,
 ) -> None:
     output_directory.mkdir(parents=True, exist_ok=True)
     csv_path = output_directory / "mac_studio_m5_ultra_counterfactual.csv"
@@ -319,7 +405,7 @@ def write_results(
             "seed": SEED,
             "tokens_per_agent": results[0].tokens_per_agent,
             "warmup": "exclude the first completed token per agent",
-            "stop_rule": "target completed tokens or 10 simulated seconds",
+            "stop_rule": "every agent completes exactly tokens_per_agent, or 10 simulated seconds",
         },
         "variants": [asdict(variant) for variant in VARIANTS],
         "negative_control": "control_x1 is identical to baseline and should reproduce it exactly.",
@@ -327,8 +413,13 @@ def write_results(
         "workload_control": {
             "routing_randomness": routing_randomness,
             "logical_identity": "seed, workload_agent_id, workload_token_ordinal, model_layer_index",
-            "route_prefix_digest": next(iter(route_digests.values())),
-            "route_identity_check": "passed",
+            "configured_route_prefix_digest": next(iter(route_digests.values())),
+            "configured_route_prefix_check": "passed",
+            "actual_consumed_route_trace_digest": actual_route_trace_digest,
+            "actual_consumed_route_identity_count": actual_route_identity_count,
+            "actual_consumed_route_identity_check": (
+                "passed" if actual_route_trace_digest is not None else "not_run"
+            ),
         },
         "historical_reference_only": {
             "681_agent_scan_throughput_tok_s": 1430.9811369323036,
@@ -348,9 +439,15 @@ def write_results(
 
 def main() -> None:
     arguments = parse_arguments()
-    results = run_sweep(arguments.tokens_per_agent, routing_randomness=KEYED_ROUTING)
-    write_results(arguments.output_directory, results, routing_randomness=KEYED_ROUTING)
-    for result in results:
+    outcome = run_controlled_sweep(arguments.tokens_per_agent)
+    write_results(
+        arguments.output_directory,
+        outcome.results,
+        routing_randomness=KEYED_ROUTING,
+        actual_route_trace_digest=outcome.actual_route_trace_digest,
+        actual_route_identity_count=outcome.actual_route_identity_count,
+    )
+    for result in outcome.results:
         print(f"{result.variant}: {result.tokens_per_second:.3f} tok/s ({result.run_status})")
 
 

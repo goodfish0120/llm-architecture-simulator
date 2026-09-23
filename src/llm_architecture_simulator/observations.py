@@ -10,6 +10,12 @@ class SimulationObserver:
         self.token_start_time_ns_by_token_id: dict[int, float] = {}
         self.expert_batch_records: list[tuple[float, int, int]] = []
         self.expert_route_records: list[tuple[float, bool, int]] = []
+        self.selected_expert_indexes_by_logical_identity: dict[
+            tuple[int, int, int], tuple[int, ...]
+        ] = {}
+        self.selected_expert_route_count_by_logical_identity: dict[
+            tuple[int, int, int], int
+        ] = {}
 
     @property
     def executed_expert_batch_sizes(self) -> list[int]:
@@ -43,6 +49,26 @@ class SimulationObserver:
     ) -> None:
         self.expert_route_records.append(
             (routing_time_ns, is_remote_route, branch_count)
+        )
+
+    def record_selected_expert_indexes(
+        self,
+        workload_agent_id: int,
+        workload_token_ordinal: int,
+        model_layer_index: int,
+        selected_expert_indexes: tuple[int, ...],
+    ) -> None:
+        identity = (
+            workload_agent_id,
+            workload_token_ordinal,
+            model_layer_index,
+        )
+        existing = self.selected_expert_indexes_by_logical_identity.get(identity)
+        if existing is not None and existing != selected_expert_indexes:
+            raise ValueError("logical route identity selected inconsistent experts")
+        self.selected_expert_indexes_by_logical_identity[identity] = selected_expert_indexes
+        self.selected_expert_route_count_by_logical_identity[identity] = (
+            self.selected_expert_route_count_by_logical_identity.get(identity, 0) + 1
         )
 
     def calculate_tokens_per_second_for_fixed_time_windows(
