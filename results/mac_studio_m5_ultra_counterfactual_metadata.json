@@ -10,7 +10,7 @@
     "seed": 7,
     "tokens_per_agent": 10,
     "warmup": "exclude the first completed token per agent",
-    "stop_rule": "target completed tokens or 10 simulated seconds"
+    "stop_rule": "every agent completes exactly tokens_per_agent, or 10 simulated seconds"
   },
   "variants": [
     {
@@ -57,12 +57,15 @@
     }
   ],
   "negative_control": "control_x1 is identical to baseline and should reproduce it exactly.",
-  "implementation_commit": "efbc3debbac9303132bc970599fb7d34729723cc",
+  "implementation_commit": "a14e40490e0ba89a0d6d94a08542e98921440870",
   "workload_control": {
     "routing_randomness": "keyed_logical_work",
     "logical_identity": "seed, workload_agent_id, workload_token_ordinal, model_layer_index",
-    "route_prefix_digest": "1e1aa4e68070a7ef98f7155b5e6de0f307981c18794bfcce1f842bb56b0e0a38",
-    "route_identity_check": "passed"
+    "configured_route_prefix_digest": "1e1aa4e68070a7ef98f7155b5e6de0f307981c18794bfcce1f842bb56b0e0a38",
+    "configured_route_prefix_check": "passed",
+    "actual_consumed_route_trace_digest": "0dc33d3849340246e6ec051b415d95117d6072ae16ff54e32f08d6f38ca546e1",
+    "actual_consumed_route_identity_count": 6810,
+    "actual_consumed_route_identity_check": "passed"
   },
   "historical_reference_only": {
     "681_agent_scan_throughput_tok_s": 1430.9811369323036,
