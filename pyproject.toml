@@ -7,6 +7,9 @@ license = { text = "MIT" }
 authors = [{ name = "goodfish0120" }]
 dependencies = []
 
+[project.optional-dependencies]
+test = ["pytest>=8"]
+
 [project.scripts]
 llm-architecture-simulator = "llm_architecture_simulator.cli:main"
 
