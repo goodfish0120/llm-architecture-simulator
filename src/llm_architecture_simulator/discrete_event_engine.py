@@ -26,6 +26,7 @@ class DiscreteEventSimulationEngine:
             str,
             Callable[["DiscreteEventSimulationEngine", ScheduledSimulationEvent], None],
         ] = {}
+        self.event_observer: Callable[[ScheduledSimulationEvent], None] | None = None
 
     def register_event_handler(
         self,
@@ -80,6 +81,8 @@ class DiscreteEventSimulationEngine:
             handler = self.event_handler_by_type.get(next_event.event_type)
             if handler is None:
                 raise KeyError(f"no handler registered for {next_event.event_type}")
+            if self.event_observer is not None:
+                self.event_observer(next_event)
             handler(self, next_event)
             executed_event_count += 1
 

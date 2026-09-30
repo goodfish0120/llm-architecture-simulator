@@ -3,6 +3,7 @@ from __future__ import annotations
 from math import log2
 
 from .discrete_event_engine import DiscreteEventSimulationEngine, ScheduledSimulationEvent
+from .diagnostic_trace import DiagnosticTrace
 from .observations import SimulationObserver
 from .particle_flow import DependencyJoinTracker, LogicalWorkUnit, WorkParticle
 from .resource_utilization import (
@@ -21,11 +22,14 @@ from .simulation_runtime_setup import (
 
 
 class StochasticMoeArchitectureSimulator:
-    def __init__(self, configuration: StochasticMoeSimulationConfiguration) -> None:
+    def __init__(self, configuration: StochasticMoeSimulationConfiguration, diagnostic_trace: DiagnosticTrace | None = None) -> None:
         configuration.validate()
         self.configuration = configuration
 
         self.event_engine = DiscreteEventSimulationEngine()
+        self.diagnostic_trace = diagnostic_trace
+        if diagnostic_trace is not None:
+            self.event_engine.event_observer = diagnostic_trace.record_event
         self.observer = SimulationObserver()
         self.dependency_join_tracker = DependencyJoinTracker()
         self.next_globally_unique_token_id = 0
@@ -151,6 +155,8 @@ class StochasticMoeArchitectureSimulator:
         token_ordinal = self.next_workload_token_ordinal_by_agent[workload_agent_id]
         self.next_workload_token_ordinal_by_agent[workload_agent_id] += 1
         self.observer.record_token_started(token_id, ready_time_ns)
+        if self.diagnostic_trace is not None:
+            self.diagnostic_trace.record_token("started", ready_time_ns, token_id, workload_agent_id, node_that_owns_sequence_state, token_ordinal)
         self.event_engine.schedule_event(
             scheduled_time_ns=ready_time_ns,
             event_type="shared_layer_work_arrived",
@@ -274,7 +280,7 @@ class StochasticMoeArchitectureSimulator:
             + self.configuration.shared_layer_activation_bytes_per_token
             * batch_particle.logical_unit_count
         )
-        _, completion_time_ns, _ = self.compute_and_memory_node_by_id[
+        service_start_time_ns, completion_time_ns, _ = self.compute_and_memory_node_by_id[
             batch_particle.current_node_id
         ].execute_kernel_with_compute_and_memory_overlap(
             ready_time_ns=event.scheduled_time_ns,
@@ -284,6 +290,8 @@ class StochasticMoeArchitectureSimulator:
             ),
             bytes_accessed=bytes_accessed,
         )
+        if self.diagnostic_trace is not None:
+            self.diagnostic_trace.record_batch("shared", batch_particle.earliest_ready_time_ns, service_start_time_ns, completion_time_ns, batch_particle.model_layer_index, batch_particle.current_node_id, gate.queued_logical_unit_count + batch_particle.logical_unit_count, batch_particle.logical_work_units)
 
         event_engine.schedule_event(
             scheduled_time_ns=completion_time_ns,
@@ -384,6 +392,8 @@ class StochasticMoeArchitectureSimulator:
                 dependency_join_id=dependency_join_id,
                 branch_count=len(selected_expert_indexes),
             )
+            if self.diagnostic_trace is not None:
+                self.diagnostic_trace.record_join("registered", event.scheduled_time_ns, dependency_join_id, len(selected_expert_indexes), (unit,))
 
             for branch_index, expert_index in enumerate(selected_expert_indexes):
                 expert_node_id = expert_node_ids[expert_index]
@@ -413,13 +423,17 @@ class StochasticMoeArchitectureSimulator:
 
             arrival_time_ns = event.scheduled_time_ns
             if is_remote_route:
-                _, arrival_time_ns = self.network_topology.transfer_bytes_between_compute_nodes(
+                start_time_ns, arrival_time_ns = self.network_topology.transfer_bytes_between_compute_nodes(
                     particle.current_node_id,
                     expert_node_id,
                     event.scheduled_time_ns,
                     self.configuration.activation_bytes_transferred_per_expert_branch
                     * len(units),
                 )
+                if self.diagnostic_trace is not None:
+                    self.diagnostic_trace.record_transfer("route", event.scheduled_time_ns, start_time_ns, arrival_time_ns, particle.current_node_id, expert_node_id, layer_index, units, self.network_topology.directional_resource_names_between_compute_nodes(particle.current_node_id, expert_node_id))
+            if self.diagnostic_trace is not None:
+                self.diagnostic_trace.record_route(event.scheduled_time_ns, layer_index, particle.current_node_id, expert_index, expert_node_id, units[0].expert_result_rendezvous_node_id, units)
 
             event_engine.schedule_event(
                 scheduled_time_ns=arrival_time_ns,
@@ -547,7 +561,7 @@ class StochasticMoeArchitectureSimulator:
             executed_batch_size=batch_particle.logical_unit_count,
             queue_depth_before_execution=queue_depth_before_execution,
         )
-        _, completion_time_ns, _ = self.compute_and_memory_node_by_id[
+        service_start_time_ns, completion_time_ns, _ = self.compute_and_memory_node_by_id[
             batch_particle.current_node_id
         ].execute_kernel_with_compute_and_memory_overlap(
             ready_time_ns=event.scheduled_time_ns,
@@ -562,6 +576,8 @@ class StochasticMoeArchitectureSimulator:
                 )
             ),
         )
+        if self.diagnostic_trace is not None:
+            self.diagnostic_trace.record_batch("expert", batch_particle.earliest_ready_time_ns, service_start_time_ns, completion_time_ns, layer_index, batch_particle.current_node_id, queue_depth_before_execution, batch_particle.logical_work_units, expert_index)
 
         event_engine.schedule_event(
             scheduled_time_ns=completion_time_ns,
@@ -606,13 +622,15 @@ class StochasticMoeArchitectureSimulator:
         for rendezvous_node_id, units in work_units_by_rendezvous_node.items():
             arrival_time_ns = event.scheduled_time_ns
             if rendezvous_node_id != particle.current_node_id:
-                _, arrival_time_ns = self.network_topology.transfer_bytes_between_compute_nodes(
+                start_time_ns, arrival_time_ns = self.network_topology.transfer_bytes_between_compute_nodes(
                     particle.current_node_id,
                     rendezvous_node_id,
                     event.scheduled_time_ns,
                     self.configuration.activation_bytes_transferred_per_expert_branch
                     * len(units),
                 )
+                if self.diagnostic_trace is not None:
+                    self.diagnostic_trace.record_transfer("expert_result", event.scheduled_time_ns, start_time_ns, arrival_time_ns, particle.current_node_id, rendezvous_node_id, particle.model_layer_index, units, self.network_topology.directional_resource_names_between_compute_nodes(particle.current_node_id, rendezvous_node_id))
 
             event_engine.schedule_event(
                 scheduled_time_ns=arrival_time_ns,
@@ -640,6 +658,9 @@ class StochasticMoeArchitectureSimulator:
             )
         )
         for released_particle in released_particles:
+            if self.diagnostic_trace is not None:
+                for unit in released_particle.logical_work_units:
+                    self.diagnostic_trace.record_join("released", event.scheduled_time_ns, f"layer_{released_particle.model_layer_index}_token_{unit.globally_unique_token_id}", 0, (unit,))
             self._transfer_joined_tokens_to_sequence_owner_nodes(
                 event_engine=event_engine,
                 particle=released_particle,
@@ -668,13 +689,15 @@ class StochasticMoeArchitectureSimulator:
 
         arrival_time_ns = ready_time_ns
         if sequence_owner_node_id != particle.current_node_id:
-            _, arrival_time_ns = self.network_topology.transfer_bytes_between_compute_nodes(
+            start_time_ns, arrival_time_ns = self.network_topology.transfer_bytes_between_compute_nodes(
                 particle.current_node_id,
                 sequence_owner_node_id,
                 ready_time_ns,
                 self.configuration.activation_bytes_transferred_per_expert_branch
                 * particle.logical_unit_count,
             )
+            if self.diagnostic_trace is not None:
+                self.diagnostic_trace.record_transfer("join_return", ready_time_ns, start_time_ns, arrival_time_ns, particle.current_node_id, sequence_owner_node_id, particle.model_layer_index, particle.logical_work_units, self.network_topology.directional_resource_names_between_compute_nodes(particle.current_node_id, sequence_owner_node_id))
 
         event_engine.schedule_event(
             scheduled_time_ns=arrival_time_ns,
@@ -744,6 +767,12 @@ class StochasticMoeArchitectureSimulator:
                 unit.globally_unique_token_id,
                 event.scheduled_time_ns,
             )
+            if self.diagnostic_trace is not None:
+                self.diagnostic_trace.record_token(
+                    "completed", event.scheduled_time_ns,
+                    unit.globally_unique_token_id, unit.workload_agent_id,
+                    unit.node_that_owns_sequence_state, unit.workload_token_ordinal,
+                )
             if (
                 self.configuration.maximum_completed_tokens_per_agent is not None
                 and unit.workload_token_ordinal + 1

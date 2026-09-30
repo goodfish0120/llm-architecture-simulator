@@ -53,6 +53,51 @@ and co-scheduled queries reuse identical KV-prefix reads within their fork group
 
 Current default hardware values are synthetic. The simulator is currently useful for mechanism experiments and controlled comparisons; calibrated hardware profiles will replace synthetic timings over time.
 
+## Diagnostic replay viewer
+
+Generate a small non-collapsed, synthetic heterogeneous run (dense-only layers 0/2 and MoE layers 1/3) from the real event simulation:
+
+```bash
+python run_diagnostic_demo.py
+```
+
+Open `diagnostic_viewer/index.html` in a browser and load the output JSON. The
+default destination is `results/diagnostic_demo.json`. The viewer replays the exported event trace: use
+seek/play/step, expand hierarchy rows, drag/resize panels, duplicate/pin a panel
+while comparing it side-by-side with another. Layout changes are in-memory for the
+open page only (they are not persisted) and never modify simulation topology or
+configuration; duplicated panels are separate
+views over the same records, not a second simulated workload.
+
+For a local HTTP launch with the demo preloaded (useful when a browser blocks
+file-to-file loading), run `python -m http.server 8000` from the repository and
+open `http://localhost:8000/diagnostic_viewer/?trace=../results/diagnostic_demo.json`.
+
+In the restricted validation environment used for this change, Python cannot create
+new files beneath this worktree's `results/` directory. The equivalent supported
+command is:
+
+```powershell
+python run_diagnostic_demo.py --output C:\Users\User\AppData\Local\Temp\diagnostic_demo.json
+```
+
+Then open `diagnostic_viewer/index.html` and choose that Temp JSON with the file
+picker. This is a sandbox limitation, not a claim that a demo JSON is already in
+`results/`; the script read-backs its generated output in normal writable setups.
+
+The trace is optional (`DiagnosticTrace` passed to `StochasticMoeArchitectureSimulator`),
+append-only, and does not schedule events or consume routing RNG. It records stable
+event ordering, token/agent/layer identities, routing branches and joins, batch
+membership/queue depth, actual modeled transfer reservations, and resource intervals.
+It is a replay of a completed simulator run—not a browser approximation.
+
+Interpretation limits: resource busy/productive labels are model-defined reservation
+intervals, not GPU utilization or MFU; modeled compute productive time includes
+startup and batch efficiency. KV is modeled as costs/capacity, not physical page
+movement. Each layer has a shared stage, so that must not be confused with a
+dense-only layer. Observed temporal correlation is evidence for investigation, not
+proof of a bottleneck cause.
+
 ## AI development disclosure
 
 All source code currently in this repository was generated and modified by **GPT-5.6 Sol** using **High reasoning effort**. The human project owner defines the problems, architecture direction, constraints, experiments, and evaluation, and has not manually written or edited the source code.

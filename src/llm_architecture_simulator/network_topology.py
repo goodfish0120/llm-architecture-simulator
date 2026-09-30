@@ -139,6 +139,25 @@ class RoutedNetworkTopology:
         )
         return serialization_start_time_ns, arrival_time_ns
 
+    def directional_resource_names_between_compute_nodes(
+        self,
+        source_node_id: int,
+        destination_node_id: int,
+    ) -> tuple[str, ...]:
+        """Describe the modeled directional resources used by a transfer."""
+        if source_node_id == destination_node_id:
+            return tuple()
+        current_endpoint = self.compute_node_endpoint(source_node_id)
+        route = self._find_and_cache_shortest_hop_route(
+            current_endpoint, self.compute_node_endpoint(destination_node_id)
+        )
+        names = []
+        for link in route:
+            next_endpoint = link.other_endpoint(current_endpoint)
+            names.append(link.directional_resource(current_endpoint, next_endpoint).resource_name)
+            current_endpoint = next_endpoint
+        return tuple(names)
+
     def _find_and_cache_shortest_hop_route(
         self,
         source_endpoint: str,
