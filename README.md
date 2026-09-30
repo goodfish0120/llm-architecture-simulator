@@ -64,9 +64,9 @@ python run_diagnostic_demo.py
 Open `diagnostic_viewer/index.html` in a browser and load the output JSON. The
 default destination is `results/diagnostic_demo.json`. The viewer replays the exported event trace: use
 seek/play/step, expand hierarchy rows, drag/resize panels, duplicate/pin a panel
-while comparing it side-by-side with another. Layout changes are in-memory for the
-open page only (they are not persisted) and never modify simulation topology or
-configuration; duplicated panels are separate
+while comparing it side-by-side with another. Base-panel positions, sizes, and pin
+state are saved in browser local storage; duplicated panels are session-only.
+Layout never modifies simulation topology or configuration; duplicated panels are separate
 views over the same records, not a second simulated workload.
 
 For a local HTTP launch with the demo preloaded (useful when a browser blocks
