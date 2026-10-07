@@ -1,10 +1,10 @@
-name: Temporary M5 Ultra 96GB bottleneck sensitivity
+name: Temporary M5 Ultra memory sizing and context comparison
 on:
   push:
     branches:
       - scratch/m5-ultra-96gb-20261008
 jobs:
-  sensitivity:
+  comparison:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -12,28 +12,39 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Test bandwidth and mesh sensitivity with simulator
+      - name: Compare 96GB short-context and 256GB configurations
         run: |
           python - <<'PY'
           import json, math
-          from src.llm_architecture_simulator.published_model_profiles import PUBLISHED_MODEL_PROFILES
+          from src.llm_architecture_simulator.published_model_profiles import PUBLISHED_MODEL_PROFILES, BYTES_PER_GB
           from src.llm_architecture_simulator.stochastic_moe_simulation import StochasticMoeArchitectureSimulator
           profiles={p.name:p for p in PUBLISHED_MODEL_PROFILES}
-          for model,agents in [("Qwen3.8 Flash Next",249),("DeepSeek V4.1 Flash",28)]:
-           for mbw,netbw in [(600,7.5),(1200,7.5),(2400,7.5),(1200,15)]:
-            p=profiles[model]
-            cfg=p.create_simulation_configuration(node_count=7,continuously_active_agent_count=agents,compute_peak_tflops_per_node=80,memory_bandwidth_gb_per_second_per_node=mbw,network_link_bandwidth_gb_per_second_each_direction=netbw,network_link_fixed_latency_ns=50000,random_seed=7,collapse_repeated_layers=True,context_token_count=100000,kv_resident_fraction=.8)
-            cfg.maximum_completed_tokens_per_agent=6
-            sim=StochasticMoeArchitectureSimulator(cfg)
-            target=agents*6
-            while len(sim.observer.completed_token_times_ns)<target and sim.event_engine.current_time_ns<10e9:
-             sim.run_for_simulated_nanoseconds(50e6)
-            ts=sorted(sim.observer.completed_token_times_ns)
-            t0=ts[agents-1]
-            kept=[t for t in ts[agents:] if t>t0]
-            rate=len(kept)/((kept[-1]-t0)/1e9) if kept and kept[-1]>t0 else 0
-            lat=sorted(l/1e6 for t,l in sim.observer.completed_token_latency_records if t>t0)
-            res={"model":model,"agents":agents,"memory_bandwidth_GB_s":mbw,"network_GB_s_each_direction":netbw,"tokens_per_second":round(rate,2),"p95_ms":round(lat[math.ceil(len(lat)*.95)-1],2),"reached":len(ts)==target}
-            print("SENSITIVITY",json.dumps(res),flush=True)
+          runs=[
+           ("Qwen3.8 Flash Next",96,80,32000,778),
+           ("DeepSeek V4.1 Flash",96,80,32000,90),
+           ("Qwen3.8 Flash Next",256,100,100000,1274),
+           ("DeepSeek V4.1 Flash",256,100,100000,336),
+           ("Kimi K3",256,100,100000,23),
+          ]
+          for name,mem,tflops,context,agents in runs:
+           p=profiles[name];available=7*mem*BYTES_PER_GB*.90-p.checkpoint_bytes
+           kv=p.approximate_kv_cache_bytes_per_context_token*context*.80
+           cap=math.floor(available/kv) if available>=0 else 0
+           if agents>cap:
+            print("SKIPPED",name,mem,context,agents,cap,flush=True)
+            continue
+           tpa=max(6,math.ceil(128/agents))
+           cfg=p.create_simulation_configuration(node_count=7,continuously_active_agent_count=agents,compute_peak_tflops_per_node=tflops,memory_bandwidth_gb_per_second_per_node=1200,network_link_bandwidth_gb_per_second_each_direction=7.5,network_link_fixed_latency_ns=50000,random_seed=7,collapse_repeated_layers=True,context_token_count=context,kv_resident_fraction=.8)
+           cfg.maximum_completed_tokens_per_agent=tpa
+           sim=StochasticMoeArchitectureSimulator(cfg)
+           target=agents*tpa
+           while len(sim.observer.completed_token_times_ns)<target and sim.event_engine.current_time_ns<10e9:
+            sim.run_for_simulated_nanoseconds(50e6)
+           ts=sorted(sim.observer.completed_token_times_ns)
+           t0=ts[agents-1]
+           measured=[t for t in ts[agents:] if t>t0]
+           rate=len(measured)/((measured[-1]-t0)/1e9) if measured and measured[-1]>t0 else 0
+           lat=sorted(l/1e6 for t,l in sim.observer.completed_token_latency_records if t>t0)
+           print("EXTENDED",json.dumps({"model":name,"physical_mem_gb_each":mem,"compute_tflops_assumed":tflops,"context_tokens":context,"agents":agents,"capacity_agents":cap,"throughput_tokens_per_second":round(rate,2),"p95_ms":round(lat[math.ceil(len(lat)*.95)-1],2),"completed":len(ts),"target":target,"reached":len(ts)>=target}),flush=True)
           PY
           
