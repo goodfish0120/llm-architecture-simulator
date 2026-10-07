@@ -1,0 +1,51 @@
+name: 13-node 96GB realistic Thunderbolt network sensitivity
+on:
+  push:
+    branches:
+      - experiments/13node-network-realism-20261008
+jobs:
+  simulation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        include:
+          - model: qwen
+            agents: 600
+            variant: rdma_3p5
+          - model: qwen
+            agents: 600
+            variant: rdma_1p5
+          - model: deepseek
+            agents: 160
+            variant: rdma_3p5
+          - model: deepseek
+            agents: 160
+            variant: rdma_1p5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 12s model-time RDMA sensitivity
+        env:
+          CASE_MODEL: ${{ matrix.model }}
+          CASE_AGENTS: ${{ matrix.agents }}
+          CASE_VARIANT: ${{ matrix.variant }}
+        run: |
+          python - <<'PY'
+          import os,sys
+          import run_mac_studio_m5_ultra_13node_12s as s
+          s.VARIANTS["rdma_3p5"] = (80.0, 1200.0, 3.5)
+          s.VARIANTS["rdma_1p5"] = (80.0, 1200.0, 1.5)
+          sys.argv = [s.__file__, "--model",os.environ["CASE_MODEL"],"--agents",os.environ["CASE_AGENTS"], "--variant",os.environ["CASE_VARIANT"], "--seconds","12","--warmup","2"]
+          s.main()
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: 13node-${{ matrix.model }}-${{ matrix.agents }}-${{ matrix.variant }}
+          path: results/13_node_96gb/*.json
+          if-no-files-found: warn
