@@ -1,4 +1,4 @@
-name: 13-node 96GB 12s topology experiment
+name: 13-node 96GB 12s topology counterfactual
 on:
   push:
     branches:
@@ -9,14 +9,38 @@ jobs:
     timeout-minutes: 55
     strategy:
       fail-fast: false
-      max-parallel: 3
+      max-parallel: 4
       matrix:
         include:
           - model: qwen
             agents: 600
-            variant: baseline
+            variant: memory_x2
+          - model: qwen
+            agents: 600
+            variant: network_x2
+          - model: qwen
+            agents: 600
+            variant: compute_x2
+          - model: qwen
+            agents: 600
+            variant: memory_half
           - model: deepseek
             agents: 160
+            variant: memory_x2
+          - model: deepseek
+            agents: 160
+            variant: network_x2
+          - model: deepseek
+            agents: 160
+            variant: compute_x2
+          - model: deepseek
+            agents: 160
+            variant: memory_half
+          - model: qwen
+            agents: 200
+            variant: baseline
+          - model: deepseek
+            agents: 60
             variant: baseline
     steps:
       - uses: actions/checkout@v4
