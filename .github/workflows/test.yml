@@ -1,18 +1,66 @@
-name: test
-
+name: Temporary M5 Ultra 96GB simulation
 on:
   push:
-  pull_request:
-
+    branches:
+      - scratch/m5-ultra-96gb-20261008
 jobs:
-  smoke-test:
+  simulation:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: python -m pip install -e ".[test]"
-      - run: python -m pytest
-      - run: python run_simulator.py --ms 2 --window-ms 1 --warmup-ms 0
-      - run: llm-architecture-simulator --ms 2 --window-ms 1 --warmup-ms 0
+      - name: Run architecture simulator against 96GB and 512GB profiles
+        run: |
+          python - <<'PY'
+          import json, math, subprocess
+          from src.llm_architecture_simulator.published_model_profiles import BYTES_PER_GB, PUBLISHED_MODEL_PROFILES
+          from src.llm_architecture_simulator.stochastic_moe_simulation import StochasticMoeArchitectureSimulator
+          profiles = {p.name:p for p in PUBLISHED_MODEL_PROFILES}
+          def capacity(p,n,gb):
+              usable = int(gb*BYTES_PER_GB*.90)
+              free = usable*n-p.checkpoint_bytes
+              if free<0: return 0
+              kv = p.approximate_kv_cache_bytes_per_context_token*100000*.8
+              return math.floor(free/kv)
+          runs=[
+            ("Qwen3.8 Flash Next",5,73,80,96),
+            ("Qwen3.8 Flash Next",6,161,80,96),
+            ("Qwen3.8 Flash Next",7,100,80,96),
+            ("Qwen3.8 Flash Next",7,249,80,96),
+            ("Qwen3.8 Flash Next",7,249,100,96),
+            ("DeepSeek V4.1 Flash",6,2,80,96),
+            ("DeepSeek V4.1 Flash",7,15,80,96),
+            ("DeepSeek V4.1 Flash",7,28,80,96),
+            ("DeepSeek V4.1 Flash",7,28,100,96),
+            ("Qwen3.8 Flash Next",7,681,80,512),
+            ("DeepSeek V4.1 Flash",7,681,80,512),
+          ]
+          print("GIT_REV",subprocess.check_output(["git","rev-parse","HEAD"],text=True).strip(),flush=True)
+          for name,p in profiles.items():
+           print("CAPACITY",json.dumps({"model":name,"checkpoint_GB":p.checkpoint_bytes/BYTES_PER_GB,"KV_GB_per_100k":p.approximate_kv_cache_bytes_per_context_token*100000*.8/BYTES_PER_GB,"caps_96GB":{n:capacity(p,n,96) for n in range(1,8)}},ensure_ascii=False),flush=True)
+          for name,n,agents,tflops,mem_gb in runs:
+           p=profiles[name];cap=capacity(p,n,mem_gb)
+           if cap<agents: print("SKIP",name,n,agents,cap,flush=True);continue
+           tpa=max(6,math.ceil(128/agents))
+           cfg=p.create_simulation_configuration(node_count=n,continuously_active_agent_count=agents,compute_peak_tflops_per_node=tflops,memory_bandwidth_gb_per_second_per_node=1200,network_link_bandwidth_gb_per_second_each_direction=7.5,network_link_fixed_latency_ns=50000,random_seed=7,collapse_repeated_layers=True,context_token_count=100000,kv_resident_fraction=.8)
+           cfg.maximum_completed_tokens_per_agent=tpa
+           sim=StochasticMoeArchitectureSimulator(cfg)
+           target=agents*tpa
+           while len(sim.observer.completed_token_times_ns)<target and sim.event_engine.current_time_ns<10e9:
+            sim.run_for_simulated_nanoseconds(50e6)
+           ts=sorted(sim.observer.completed_token_times_ns)
+           t0=ts[agents-1] if len(ts)>=agents else 0
+           kept=[t for t in ts[agents:] if t>t0]
+           throughput=len(kept)/((kept[-1]-t0)/1e9) if kept and kept[-1]>t0 else 0
+           lat=sorted(l/1e6 for t,l in sim.observer.completed_token_latency_records if t>t0)
+           occ=sim.calculate_resource_occupancy_between_times(t0,sim.event_engine.current_time_ns)
+           def avg(prefix):
+            a=[v for k,v in occ.items() if k.startswith(prefix)]
+            return sum(a)/len(a) if a else 0
+           result={"model":name,"nodes":n,"physical_mem_gb_each":mem_gb,"gpu_core_proxy":64 if tflops==80 else 80,"tflops_per_node_assumed":tflops,"agents":agents,"agent_cap":cap,"throughput_tok_per_s":round(throughput,2),"p95_ms":round(lat[math.ceil(len(lat)*.95)-1],3) if lat else None,"compute_busy":round(avg("compute["),3),"memory_busy":round(avg("memory["),3),"completed":len(ts),"target":target,"reached":len(ts)>=target}
+           print("SIMRESULT",json.dumps(result,ensure_ascii=False),flush=True)
+          PY
+          
